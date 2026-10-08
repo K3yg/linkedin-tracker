@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+data/
+.env
+cv/
+intel/
+tools/

@@ -1,0 +1,17 @@
+<div id="scan-status" class="status" hx-get="/scan-status" hx-swap="outerHTML"
+     hx-trigger="every {{ '3s' if poller.scanning else '30s' }}"
+     hx-vals='{"was_scanning": {{ 1 if poller.scanning else 0 }}}'>
+  <span class="dot {{ 'busy' if poller.scanning else ('err' if poller.last_error else '') }}"></span>
+  {% if poller.scanning %}
+    <span>Scanning…</span>
+  {% elif poller.last_error %}
+    <span data-tip="LinkedIn is temporarily refusing requests from this PC because we asked too much, too fast. The tracker waits and retries by itself.">Rate-limited · retry {{ poller.next_scan_at|until }}</span>
+  {% elif poller.last_attempt_at %}
+    <span data-tip="Next automatic scan {{ poller.next_scan_at|until }}">Updated {{ poller.last_attempt_at|ago }} · {{ poller.last_new }} new</span>
+  {% else %}
+    <span>Starting…</span>
+  {% endif %}
+  <button class="btn" data-tip="Search LinkedIn right now instead of waiting for the next automatic scan"
+          hx-post="/api/scan" hx-target="#scan-status" hx-swap="outerHTML"
+          {% if poller.scanning %}disabled{% endif %}>Scan Now</button>
+</div>

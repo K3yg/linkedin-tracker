@@ -1,0 +1,20 @@
+<div class="group">
+  {% for s in searches %}
+  <div class="search-row">
+    <span>{{ s.keywords }}{% if s.location %} <span class="muted">· {{ s.location }}</span>{% endif %}</span>
+    <button class="btn icon" data-tip="Stop searching for “{{ s.keywords }}”" aria-label="Remove {{ s.keywords }}"
+            hx-post="/api/searches/{{ loop.index0 }}/delete" hx-target="#searches"
+            hx-confirm="Remove “{{ s.keywords }}”?">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  </div>
+  {% else %}
+  <div class="search-row muted">No searches yet</div>
+  {% endfor %}
+</div>
+<form class="add" hx-post="/api/searches" hx-target="#searches">
+  <input name="keywords" placeholder="Keywords — e.g. TypeScript engineer" required>
+  <input name="location" placeholder="Location (optional)">
+  <button class="btn primary" type="submit">Add</button>
+</form>
+<p class="hint">Saved to config.json · used from the next scan.</p>

@@ -1,0 +1,30 @@
+{% from "_job.html" import job_card, job_row with context %}
+{% if status == "flagged" %}
+<div class="notice">Hidden from To Apply because they look fake, spammy or low quality, or the AI judged them not worth applying. “Trust company” un-flags a company for good.</div>
+{% endif %}
+{% if status == "new" and pending %}
+<div class="notice"><span class="spinner"></span>Checking {{ pending }} job{{ 's' if pending != 1 }} for 100% remote — a batch every scan</div>
+{% endif %}
+
+{% if picks %}
+<section class="picks">
+  <div class="section-head">
+    <h2>Top Picks</h2>
+    <p>Fresh, few applicants, Easy Apply boosted, not staff-level.</p>
+  </div>
+  <div class="cards">
+    {% for j in picks %}{{ job_card(j, loop.index) }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section>
+  {% if picks %}<h3 class="group-head">Everything else <span>{{ jobs|length }}</span></h3>{% endif %}
+  {% if jobs %}
+  <div class="group">
+    {% for j in jobs %}{{ job_row(j) }}{% endfor %}
+  </div>
+  {% elif not picks %}
+  <p class="empty">nothing here yet<i class="cursor"></i></p>
+  {% endif %}
+</section>

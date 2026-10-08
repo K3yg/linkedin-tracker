@@ -1,0 +1,54 @@
+{# The tailored-CV area of a job card: Tailor CV button, progress, PDF links, what changed (tailor.py). #}
+
+{% macro changes(cv) %}
+<details class="cv-changes">
+  <summary>What changed</summary>
+  <div class="cv-meta">{{ "Portuguese" if cv.language == "pt" else "English" }} · {{ cv.model }} · made {{ cv.created_at|ago }}{% if cv.retried %} · fixed after a check{% endif %}</div>
+  <p><b>Headline</b> “{{ cv.headline.before }}” → “{{ cv.headline.after }}”{% if cv.headline.why %} <span class="muted">— {{ cv.headline.why }}</span>{% endif %}</p>
+  {% for e in cv.entries %}
+  <div class="cv-entry">
+    <b>{{ e.company }}</b>
+    <ol>
+      {% for b in e.bullets %}
+      <li>
+        <span class="tag cv-{{ b.status }}">{% if b.status == "moved" %}moved from #{{ b.from_position }}{% else %}{{ b.status }}{% endif %}</span>
+        {{ b.text }}{% if b.why and b.status != "kept" %} <span class="muted">— {{ b.why }}</span>{% endif %}
+        {% if b.status in ("reworded", "translated") %}<div class="was">was #{{ b.from_position }}: {{ b.original }}</div>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% for d in e.dropped %}
+    <div class="was dropped">dropped{% if d.source in cv.page_fit_drops %} to fit one page{% endif %}: {{ d.original }}</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+  {% if cv.fallbacks %}
+  <p class="muted">Safety checks: {{ cv.fallbacks|join(" · ") }}</p>
+  {% endif %}
+</details>
+{% endmacro %}
+
+{% macro cv_slot(j) %}
+<div class="cv-slot" id="cv-{{ j.id }}">
+  {% if j.cv_status == "working" %}
+    <span class="cv-busy" hx-get="/cv-slot/{{ j.id }}" hx-trigger="load delay:3s"
+          hx-target="closest .cv-slot" hx-swap="outerHTML"><span class="spinner"></span>Tailoring your CV to this job…</span>
+  {% else %}
+    {% if j.cv %}
+    <a class="btn primary small" href="/cv/{{ j.id }}/cv.pdf" target="_blank" rel="noopener"
+       data-tip="Your CV tailored to this job — upload it in Easy Apply">CV PDF ↗</a>
+    <a class="btn small" href="/cv/{{ j.id }}/cv.tex" data-tip="LaTeX source, e.g. to tweak it in Overleaf">.tex</a>
+    {% endif %}
+    {% if j.description %}
+    <button class="btn small" hx-post="/api/jobs/{{ j.id }}/cv" hx-target="closest .cv-slot" hx-swap="outerHTML"
+            data-tip="{{ 'Make a new version for this job' if j.cv else 'Reorder and reword your CV for this job (never adds anything you did not do) — about 20s' }}">{{ "Re-tailor" if j.cv else "Tailor CV" }}</button>
+    {% endif %}
+    {% if j.cv_status == "error" %}
+    <span class="cv-error" data-tip="{{ j.cv_error }}">Couldn't tailor{% if j.cv %} — showing the previous version{% endif %}</span>
+    {% endif %}
+    {% if j.cv %}{{ changes(j.cv) }}{% endif %}
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% if j is defined %}{{ cv_slot(j) }}{% endif %}

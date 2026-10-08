@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Silkscreen&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body data-view="{{ status }}">
+<div class="desktop">
+  <div class="window">
+    <header class="titlebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="logo">JOB<span>/</span>TRACKER<i class="cursor"></i></div>
+      {% include "_status.html" %}
+    </header>
+
+    <div class="toolbar">
+      <nav id="tabs" class="segmented" hx-get="/tabs" hx-include="#filters"
+           hx-trigger="countsChanged from:body, scanDone from:body, every 60s">
+        {% include "_tabs.html" %}
+      </nav>
+
+      <form id="filters" class="search" onsubmit="return false">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="5"/><path d="m11 11 3.5 3.5"/></svg>
+        <input type="hidden" name="status" value="{{ status }}">
+        <input type="hidden" name="sort" value="{{ sort }}">
+        <input type="search" name="q" value="{{ q }}" placeholder="Search" autocomplete="off"
+               hx-get="/list" hx-target="#list" hx-include="#filters"
+               hx-trigger="input changed delay:250ms, search">
+      </form>
+
+      {% if status == "new" %}
+      <div class="segmented small" role="group" aria-label="Sort">
+        <a href="/?status=new&sort=match{% if q %}&q={{ q|urlencode }}{% endif %}"
+           class="{{ 'on' if sort == 'match' }}"
+           data-tip="Your skills, startups first, mid-level, Easy Apply, few applicants, fresh">Best match</a>
+        <a href="/?status=new&sort=applicants{% if q %}&q={{ q|urlencode }}{% endif %}"
+           class="{{ 'on' if sort == 'applicants' }}" data-tip="Least competition first">Fewest applicants</a>
+        <a href="/?status=new&sort=newest{% if q %}&q={{ q|urlencode }}{% endif %}"
+           class="{{ 'on' if sort == 'newest' }}" data-tip="Most recently posted first">Newest</a>
+      </div>
+      <button class="btn danger" data-tip="Delete all jobs in To Apply and search again from scratch"
+              hx-post="/api/reset"
+              hx-confirm="Delete every job in To Apply and search again from scratch? Applied and dismissed jobs are kept.">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.6-3.9M2.5 2.5v3h3"/></svg>
+        Reset
+      </button>
+      {% endif %}
+    </div>
+
+    <main id="list" hx-get="/list" hx-include="#filters" hx-disinherit="*"
+          hx-trigger="scanDone from:body, listStale from:body, every 60s">
+      {% include "_list.html" %}
+    </main>
+
+    <details class="searches">
+      <summary>
+        <span>Searches</span>
+        <span class="muted">{{ searches|length }} active{% if remote_only %} · 100% remote only{% endif %}</span>
+      </summary>
+      <div id="searches">{% include "_searches.html" %}</div>
+    </details>
+  </div>
+  <p class="foot">Running locally · public LinkedIn listings · refreshes every minute</p>
+</div>
+</body>
+</html>

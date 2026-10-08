@@ -1,0 +1,8 @@
+{% set tips = {"new": "Verified 100% remote Easy Apply jobs that match you, open to Brazil, still accepting applications",
+                "flagged": "Hidden because they look fake, spammy or low quality, or the AI said skip",
+                "applied": "Jobs you marked as applied",
+                "dismissed": "Jobs you weren't interested in"} %}
+{% for key, label in [("new", "To Apply"), ("flagged", "Flagged"), ("applied", "Applied"), ("dismissed", "Dismissed")] %}
+<a class="{{ 'on' if key == status }}" data-view="{{ key }}" data-tip="{{ tips[key] }}"
+   href="/?status={{ key }}&sort={{ sort }}{% if q %}&q={{ q|urlencode }}{% endif %}">{{ label }}<span class="count">{{ counts[key] }}</span></a>
+{% endfor %}

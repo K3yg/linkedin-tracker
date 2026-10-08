@@ -1,0 +1,129 @@
+{
+  "poll_minutes": 15,
+  "lookback_seconds": 86400,
+  "max_pages_per_search": 2,
+  "detail_checks_per_scan": 20,
+  "company_checks_per_scan": 8,
+  "remote_only": true,
+  "easy_apply_only": true,
+  "rechecks_per_scan": 5,
+  "ai": {
+    "enabled": true,
+    "model": "gemini-2.5-flash",
+    "tailor_model": "gemini-3.8-flash",
+    "per_scan": 15,
+    "hide_skips": true
+  },
+  "remote_region": {
+    "allowed": ["brazil", "brasil", "latam", "latin america", "south america", "americas"],
+    "hide_unstated": false
+  },
+  "searches": [
+    {"keywords": "python engineer", "location": "United States"},
+    {"keywords": "full stack engineer", "location": "United States"},
+    {"keywords": "ai engineer", "location": "United States"},
+    {"keywords": "llm engineer", "location": "United States"},
+    {"keywords": "react developer", "location": "United States"},
+    {"keywords": "node.js engineer", "location": "United States"},
+    {"keywords": "software engineer python", "location": "United States"},
+    {"keywords": "python developer", "location": "European Union"},
+    {"keywords": "full stack developer", "location": "European Union"},
+    {"keywords": "ai engineer", "location": "European Union"},
+    {"keywords": "python developer", "location": "Latin America"},
+    {"keywords": "full stack developer", "location": "Latin America"},
+    {"keywords": "ai engineer", "location": "Latin America"},
+    {"keywords": "react developer", "location": "Latin America"}
+  ],
+  "profile": {
+    "min_fit": 4,
+    "max_years_required": 7,
+    "skills": {
+      "python": 3, "typescript": 3, "javascript": 2, "node": 2, "node.js": 2, "nodejs": 2, "react": 2, "next.js": 1,
+      "llm": 3, "llms": 3, "genai": 2, "generative ai": 2, "prompt engineering": 2, "ai agents": 2, "agentic": 2,
+      "mcp": 2, "openai": 1, "anthropic": 1, "rag": 1,
+      "aws": 2, "lambda": 1, "sqs": 1, "serverless": 1, "postgres": 2, "postgresql": 2, "sql": 1,
+      "fastapi": 2, "flask": 2, "django": 2, "celery": 1, "rest api": 1, "restful": 1,
+      "full stack": 2, "full-stack": 2, "fullstack": 2,
+      "healthcare": 2, "health tech": 2, "healthtech": 2, "hipaa": 2, "ehr": 2, "clinical": 1,
+      "document processing": 1, "data extraction": 1, "pdf": 1, "ocr": 1,
+      "playwright": 1, "selenium": 1, "automation": 1, "startup": 1
+    },
+    "avoid": {
+      "java": -2, "spring boot": -2, "golang": -2, "rust": -2, "c++": -3, "c#": -2, ".net": -2,
+      "scala": -2, "php": -2, "ruby on rails": -1, "kotlin": -2, "swift": -2,
+      "kubernetes": -1, "networking": -2, "datapath": -4, "kernel": -3, "embedded": -3, "firmware": -3,
+      "security clearance": -4, "active clearance": -4, "ts/sci": -4
+    }
+  },
+  "role_keywords": [
+    "software engineer", "software developer", "software development", "software engineering",
+    "full stack", "front end", "back end", "frontend", "backend",
+    "web developer", "web engineer", "application developer", "product engineer",
+    "ui developer", "ui engineer",
+    "ai engineer", "ai developer", "ai/ml engineer", "ml engineer", "machine learning engineer",
+    "artificial intelligence engineer",
+    "llm engineer", "genai engineer", "generative ai engineer", "applied ai", "agentic ai",
+    "react", "reactjs", "react.js", "node", "nodejs", "node.js", "next.js", "typescript", "javascript", "python",
+    "swe", "sde", "programmer", "founding engineer", "automation developer",
+    "desenvolvedor", "desenvolvedora", "engenheiro de software", "engenheira de software",
+    "programador", "programadora", "desarrollador", "desarrolladora"
+  ],
+  "exclude_title_words": [
+    "staff", "principal", "distinguished", "lead", "tech lead", "head of", "vp", "intern", "internship",
+    "network", "networking", "datapath", "kernel", "compiler", "gpu", "cuda", "storage", "sensor",
+    "ios", "android", "mobile", "flutter", "unity", "game", "gaming", "blockchain", "solidity", "web3",
+    "java", "golang", "rust", "c++", "c#", ".net", "scala", "php", "kotlin", "swift",
+    "scientist", "data science", "research", "researcher", "analyst", "analytics",
+    "data engineer", "data engineering", "qa", "test engineer", "quality",
+    "devops", "devsecops", "site reliability", "sre", "cloud engineer", "infrastructure engineer",
+    "network engineer", "security engineer", "systems engineer", "automation engineer",
+    "sales", "solutions engineer", "support", "customer engineer", "consultant", "consulting",
+    "embedded", "firmware", "hardware", "electrical", "mechanical", "robotics", "plc",
+    "design engineer", "salesforce", "servicenow", "sap", "mainframe",
+    "manager", "director", "architect", "administrator",
+    "estágio", "estagiário", "estagiária", "líder", "gerente", "coordenador", "coordenadora", "arquiteto",
+    "trainer", "ai training", "annotation", "tutor",
+    "on-site", "onsite", "hybrid", "in person", "f2f", "face to face"
+  ],
+  "top_picks_exclude_title_words": [
+    "senior",
+    "sr",
+    "sr.",
+    "sênior",
+    "staff",
+    "principal",
+    "distinguished",
+    "director",
+    "head of",
+    "vp",
+    "vice president",
+    "manager",
+    "architect",
+    "new grad",
+    "junior",
+    "júnior",
+    "entry level"
+  ],
+  "trust": {
+    "soft_flags_to_hide": 2,
+    "max_same_title_per_company": 3,
+    "max_jobs_per_company_week": 10,
+    "min_description_chars": 500,
+    "blocked_companies": [
+      "Jobgether", "Jobot", "Haystack", "Lensa", "Jobs via Dice", "Jobs via eFinancialCareers",
+      "Talentify.io", "Jobright.ai", "ClickJobs.io", "Get It Recruit", "Recruiting from Scratch",
+      "SynergisticIT", "Outlier", "DataAnnotation", "Alignerr", "Mercor", "micro1",
+      "Crossing Hurdles", "Remotasks", "HiredBuddy", "Torentify"
+    ],
+    "trusted_companies": [],
+    "hide_phrases": [
+      "on behalf of a partner company", "listed on behalf of",
+      "ai trainer", "ai tutor", "data annotation", "help train ai", "rate ai responses",
+      "telegram", "whatsapp", "@gmail.com", "no experience required", "work from your phone"
+    ],
+    "warn_phrases": [
+      "my client", "our client", "i am recruiting for", "i'm recruiting for", "je recrute pour", "c2c", "corp to corp", "w2 only", "1099",
+      "security clearance", "ts/sci", "clearance required"
+    ]
+  }
+}

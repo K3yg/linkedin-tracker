@@ -1,0 +1,106 @@
+{% from "_cv.html" import cv_slot %}
+{% macro applicants(j) %}
+  {% if j.applicants is not none %}
+    <span class="pill {{ applicants_level(j) }}" data-tip="{{ j.applicants_text }} people applied so far — fewer means better odds">{{ j.applicants_text }}</span>
+  {% elif j.applicants_text == "closed" %}
+    <span class="pill unknown" data-tip="No longer accepting applications">closed</span>
+  {% elif j.applicants_checked_at %}
+    <span class="pill unknown" data-tip="LinkedIn didn't show an applicant count">n/a</span>
+  {% else %}
+    <span class="pill unknown" data-tip="Not checked yet — the next scans will fill this in">···</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro where(j) %}{{ j.location }}{% if j.copies %} <span class="more" data-tip="Same job also posted in: {{ j.copies|join(' · ') }} — Applied / Dismiss covers them all">+{{ j.copies|length }} more</span>{% endif %}{% endmacro %}
+
+{% macro ai_tag(j) %}
+  {% if j.ai_verdict %}
+    <span class="tag ai {{ j.ai_verdict }}" data-tip="AI ({{ j.ai_verdict }}): {{ j.ai_summary }}{% for r in j.ai_reasons_list %} · {{ r }}{% endfor %}">AI {{ j.ai_score }}</span>
+  {% elif ai_on and status == "new" %}
+    <span class="tag muted" data-tip="Waiting for the AI check — runs after each scan">AI ···</span>
+  {% endif %}
+{% endmacro %}
+
+{% macro tags(j) %}
+  {{ ai_tag(j) }}
+  {% if is_fresh(j) %}<span class="tag new" data-tip="Posted less than an hour ago">New</span>{% endif %}
+  {% if j.apply_type == "easy_apply" and not easy_only %}<span class="tag easy" data-tip="Apply in one click on LinkedIn (ranked higher)">Easy Apply</span>{% endif %}
+  {% set co = j.co %}
+  {% if co and co.is_startup %}<span class="tag startup" data-tip="{{ co.size_text }}{% if co.founded %} · founded {{ co.founded }}{% endif %} (ranked higher)">Startup</span>{% endif %}
+  {% if j.senior %}<span class="tag muted" data-tip="Senior-level title — ranked lower{% if j.years and j.years <= 5 %} (only a little: it asks for {{ j.years }}+ years){% endif %}">Senior</span>
+  {% elif j.mid %}<span class="tag ok" data-tip="Mid-level title (ranked higher)">Mid-level</span>{% endif %}
+  {% if j.years %}<span class="tag {{ 'ok' if j.years <= 5 else 'muted' }}" data-tip="Asks for {{ j.years }}+ years of experience{% if 2 <= j.years <= 5 %} — a mid-level fit (ranked higher){% elif j.years > 5 %} (ranked lower){% endif %}">{{ j.years }}+ yrs</span>{% endif %}
+  {% if not remote_only and mentions_remote(j) %}<span class="tag">Remote</span>{% endif %}
+  {% if remote_only and j.scope == "open" %}<span class="tag open" data-tip="{{ j.scope_evidence }}">Brazil OK</span>
+  {% elif remote_only and j.scope == "unstated" %}<span class="tag muted" data-tip="The posting doesn't say where you can work from — often means its own country only (ranked lower)">Region?</span>{% endif %}
+  {% if status != "flagged" %}
+    {% for f in flags_of(j.flags) if not f.hard %}<span class="tag warn" title="Warning: {{ f.reason }}">{{ f.reason }}</span>{% endfor %}
+  {% endif %}
+{% endmacro %}
+
+{% macro reasons(j) %}
+  {% if status == "flagged" %}
+  <ul class="reasons">
+    {% if j.ai_verdict == "skip" %}<li class="hard">AI: {{ j.ai_summary }}</li>{% endif %}
+    {% for f in flags_of(j.flags) %}<li class="{{ 'hard' if f.hard }}">{{ f.reason }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+{% endmacro %}
+
+{% macro actions(j) %}
+  {# Handled by /static/app.js: the card leaves at once and the request runs in the background. #}
+  {% if status in ("new", "flagged") %}
+    <button class="btn primary" data-tip="I applied — move to the Applied tab"
+            data-act="/api/jobs/{{ j.id }}/status" data-to="applied">Applied</button>
+    {% if status == "flagged" %}
+    <button class="btn" data-tip="This company is legit — never flag it again"
+            data-act="/api/companies/trust" data-whole-company>Trust company</button>
+    {% else %}
+    <button class="btn icon" data-tip="Block {{ j.company }} — hide all its jobs" aria-label="Block {{ j.company }}"
+            data-act="/api/companies/block" data-whole-company
+            data-confirm="Hide every job from {{ j.company }} from now on?">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M4.1 11.9l7.8-7.8"/></svg>
+    </button>
+    {% endif %}
+    <button class="btn icon" data-tip="Not interested — move to Dismissed" aria-label="Dismiss"
+            data-act="/api/jobs/{{ j.id }}/status" data-to="dismissed">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+    </button>
+  {% else %}
+    <button class="btn" data-tip="Move back to To Apply"
+            data-act="/api/jobs/{{ j.id }}/status" data-to="new">Undo</button>
+  {% endif %}
+{% endmacro %}
+
+{% macro job_card(j, rank) %}
+<article class="job card" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
+  <div class="card-top">
+    <span class="rank" data-tip="Match score {{ j.match|round|int }} — skills, startup, level, applicants, freshness">{{ "%02d"|format(rank) }}</span>
+    {{ applicants(j) }}
+  </div>
+  <a class="title" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
+  <div class="sub">{{ j.company }}</div>
+  <div class="meta">{{ where(j) }} · {{ j.posted_at|ago }} {{ tags(j) }}</div>
+  <div class="card-actions">
+    <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on LinkedIn">Open ↗</a>
+    {{ actions(j) }}
+  </div>
+  {% if status in ("new", "applied") %}{{ cv_slot(j) }}{% endif %}
+</article>
+{% endmacro %}
+
+{% macro job_row(j) %}
+<article class="job row" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
+  <div class="row-appl">{{ applicants(j) }}</div>
+  <div class="row-info">
+    <a class="title" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
+    <div class="meta">{{ j.company }} · {{ where(j) }} {{ tags(j) }}</div>
+    {{ reasons(j) }}
+    {% if status in ("new", "applied") %}{{ cv_slot(j) }}{% endif %}
+  </div>
+  <time class="when">
+    {% if status == "applied" %}applied {{ j.applied_at|ago }}{% else %}{{ j.posted_at|ago }}{% endif %}
+  </time>
+  <div class="actions">{{ actions(j) }}</div>
+</article>
+{% endmacro %}
