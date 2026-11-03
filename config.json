@@ -1,12 +1,12 @@
 {
   "poll_minutes": 30,
   "lookback_seconds": 86400,
-  "max_pages_per_search": 1,
-  "detail_checks_per_scan": 8,
-  "company_checks_per_scan": 3,
+  "max_pages_per_search": 2,
+  "detail_checks_per_scan": 5,
+  "company_checks_per_scan": 0,
   "remote_only": true,
   "easy_apply_only": true,
-  "rechecks_per_scan": 2,
+  "rechecks_per_scan": 1,
   "ai": {
     "enabled": false,
     "model": "gemini-2.5-flash",
@@ -105,60 +105,20 @@
   },
   "searches": [
     {
-      "keywords": "python engineer",
+      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "location": "Brazil"
+    },
+    {
+      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "location": "Latin America"
+    },
+    {
+      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "United States"
     },
     {
-      "keywords": "full stack engineer",
-      "location": "United States"
-    },
-    {
-      "keywords": "ai engineer",
-      "location": "United States"
-    },
-    {
-      "keywords": "llm engineer",
-      "location": "United States"
-    },
-    {
-      "keywords": "react developer",
-      "location": "United States"
-    },
-    {
-      "keywords": "node.js engineer",
-      "location": "United States"
-    },
-    {
-      "keywords": "software engineer python",
-      "location": "United States"
-    },
-    {
-      "keywords": "python developer",
+      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "European Union"
-    },
-    {
-      "keywords": "full stack developer",
-      "location": "European Union"
-    },
-    {
-      "keywords": "ai engineer",
-      "location": "European Union"
-    },
-    {
-      "keywords": "python developer",
-      "location": "Latin America"
-    },
-    {
-      "keywords": "full stack developer",
-      "location": "Latin America"
-    },
-    {
-      "keywords": "ai engineer",
-      "location": "Latin America"
-    },
-    {
-      "keywords": "react developer",
-      "location": "Latin America"
     }
   ],
   "role_keywords": [
