@@ -96,9 +96,12 @@ def _annotate(rows, cfg: dict) -> list[dict]:
     """Rows -> dicts with fit / company kind / seniority / match score for ranking and badges."""
     companies = db.companies_by_url()
     fn = db.functions(cfg)
+    ai_on = ai.enabled(cfg)
     out = []
     for r in rows:
         j = dict(r)
+        if not ai_on:  # AI switched off: old verdicts neither show nor affect the ranking
+            j["ai_verdict"] = j["ai_score"] = None
         co = companies.get(r["company_url"] or "")
         kind = ranking.company_kind(co)
         j["co"] = {"kind": kind, "is_startup": kind == "startup",
@@ -108,7 +111,7 @@ def _annotate(rows, cfg: dict) -> list[dict]:
         j["years"] = checks.years_required(r["description"])
         j["fit"] = fit = fn.fit(r["title"], r["description"])
         j["scope"], j["scope_evidence"] = fn.scope(r["title"], r["location"], r["description"])
-        j["match"] = ranking.match_score(r, co, fit, j["scope"])
+        j["match"] = ranking.match_score(j, co, fit, j["scope"])
         j["ai_reasons_list"] = json.loads(r["ai_reasons"]) if r["ai_reasons"] else []
         j["cv"] = json.loads(r["cv_changes"]) if r["cv_changes"] else None
         out.append(j)
