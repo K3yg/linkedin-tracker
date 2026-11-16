@@ -321,7 +321,8 @@
       "Torentify",
       "Programmers.io",
       "INDI Staffing Services",
-      "Inviso"
+      "Inviso",
+      "Crossover"
     ],
     "trusted_companies": [],
     "hide_phrases": [
@@ -372,7 +373,9 @@
     "remotive": {
       "category": "software-dev"
     },
-    "remoteok": {"enabled": true},
+    "remoteok": {
+      "enabled": true
+    },
     "weworkremotely": {
       "categories": [
         "remote-full-stack-programming-jobs",
