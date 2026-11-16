@@ -8,6 +8,10 @@
     <span data-tip="LinkedIn is temporarily refusing requests from this PC because we asked too much, too fast. The tracker waits and retries by itself.">Rate-limited · retry {{ poller.next_scan_at|until }}</span>
   {% elif poller.last_attempt_at %}
     <span data-tip="Next automatic scan {{ poller.next_scan_at|until }}">Updated {{ poller.last_attempt_at|ago }} · {{ poller.last_new }} new</span>
+  {% elif poller.next_scan_at and poller.backoff > 1 %}
+    <span data-tip="LinkedIn was refusing requests before the restart; waiting it out before searching again.">Rate-limited · retry {{ poller.next_scan_at|until }}</span>
+  {% elif poller.next_scan_at %}
+    <span>Next scan {{ poller.next_scan_at|until }}</span>
   {% else %}
     <span>Starting…</span>
   {% endif %}

@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import json
 import logging
 import random
 from dataclasses import asdict
@@ -19,6 +20,9 @@ MAX_BACKOFF = 8
 # double the backoff, so scans ran every ~2h; now company pages just pause for a while.
 COMPANY_COOLDOWN = timedelta(hours=6)
 NOTIFY_MAX_AGE_HOURS = 12
+# Survives restarts: restarting the server used to scan at once and reset the backoff, which hit
+# LinkedIn again while it was still refusing us.
+STATE_PATH = config.ROOT / "data" / "poller_state.json"
 
 
 def utcnow() -> datetime:
@@ -36,6 +40,22 @@ class Poller:
         self.full_lookback = False  # set after a reset: next scan searches the whole lookback window
         self.companies_paused_until: datetime | None = None
         self._lock = asyncio.Lock()
+        self._load_state()
+
+    def _load_state(self) -> None:
+        try:
+            state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            self.backoff = int(state.get("backoff", 1))
+            if state.get("next_scan_at"):
+                self.next_scan_at = datetime.fromisoformat(state["next_scan_at"])
+        except (OSError, ValueError):
+            pass
+
+    def _save_state(self) -> None:
+        STATE_PATH.write_text(json.dumps({
+            "backoff": self.backoff,
+            "next_scan_at": self.next_scan_at.isoformat() if self.next_scan_at else None,
+        }), encoding="utf-8")
 
     @property
     def scanning(self) -> bool:
@@ -72,7 +92,7 @@ class Poller:
                         stats["queries"] += 1
                         for page in range(int(cfg["max_pages_per_search"])):
                             if not first_request:
-                                await asyncio.sleep(random.uniform(3, 6))
+                                await asyncio.sleep(random.uniform(8, 15))
                             first_request = False
                             raw = await scraper.search(
                                 client, query, s.get("location", ""), lookback, page * scraper.PAGE_SIZE,
@@ -96,7 +116,7 @@ class Poller:
                     # Read detail pages (applicants, remote check, trust data), a few per scan.
                     todo = db.jobs_needing_details(int(cfg["detail_checks_per_scan"]))
                     for job in todo:
-                        await asyncio.sleep(random.uniform(5, 9))  # detail pages rate-limit sooner
+                        await asyncio.sleep(random.uniform(10, 20))  # detail pages rate-limit sooner
                         try:
                             details = await scraper.fetch_details(client, job["id"], job["title"], job["location"])
                         except httpx.TransportError as e:  # timeout etc.: skip, retried next scan
@@ -112,7 +132,7 @@ class Poller:
                     # Re-read a few jobs already in To Apply: closed ones drop out, applicant counts refresh.
                     rechecked = closed = 0
                     for job in db.jobs_to_recheck(int(cfg["rechecks_per_scan"])):
-                        await asyncio.sleep(random.uniform(5, 9))
+                        await asyncio.sleep(random.uniform(10, 20))
                         try:
                             details = await scraper.fetch_details(client, job["id"], job["title"], job["location"])
                         except httpx.TransportError as e:
@@ -128,7 +148,7 @@ class Poller:
                     # when LinkedIn refuses, skip it for a while instead of failing the scan.
                     paused = self.companies_paused_until and utcnow() < self.companies_paused_until
                     for url in [] if paused else db.companies_needed(int(cfg["company_checks_per_scan"])):
-                        await asyncio.sleep(random.uniform(5, 9))
+                        await asyncio.sleep(random.uniform(10, 20))
                         try:
                             db.save_company(url, await scraper.fetch_company(client, url))
                         except httpx.TransportError as e:
@@ -171,6 +191,9 @@ class Poller:
             return new_jobs
 
     async def run_forever(self) -> None:
+        # After a restart, wait out a scan that was already scheduled (e.g. a rate-limit backoff).
+        if self.next_scan_at and self.next_scan_at > utcnow():
+            await asyncio.sleep((self.next_scan_at - utcnow()).total_seconds())
         while True:
             try:
                 await self.scan()
@@ -178,6 +201,7 @@ class Poller:
                 log.exception("scan failed")
             interval = float(config.load()["poll_minutes"]) * 60 * self.backoff
             self.next_scan_at = utcnow() + timedelta(seconds=interval)
+            self._save_state()
             await asyncio.sleep(interval)
 
 

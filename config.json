@@ -1,7 +1,7 @@
 {
   "poll_minutes": 30,
   "lookback_seconds": 86400,
-  "max_pages_per_search": 2,
+  "max_pages_per_search": 1,
   "detail_checks_per_scan": 5,
   "company_checks_per_scan": 0,
   "remote_only": true,
@@ -105,19 +105,19 @@
   },
   "searches": [
     {
-      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "Brazil"
     },
     {
-      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "Latin America"
     },
     {
-      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "United States"
     },
     {
-      "keywords": "(python OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "European Union"
     }
   ],
@@ -320,7 +320,8 @@
       "HiredBuddy",
       "Torentify",
       "Programmers.io",
-      "INDI Staffing Services"
+      "INDI Staffing Services",
+      "Inviso"
     ],
     "trusted_companies": [],
     "hide_phrases": [
