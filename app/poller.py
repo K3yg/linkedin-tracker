@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from . import ai, config, db, intel, ranking, roles, scraper, trust
+from . import ai, config, db, intel, ranking, roles, scraper, sources, trust
 from .notify import notify_new
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,8 @@ class Poller:
         self.backoff = 1
         self.full_lookback = False  # set after a reset: next scan searches the whole lookback window
         self.companies_paused_until: datetime | None = None
+        self.sources_last_run: dict[str, str] = {}  # source -> ISO time of its last fetch
+        self.sources_errors: dict[str, str] = {}
         self._lock = asyncio.Lock()
         self._load_state()
 
@@ -46,6 +48,7 @@ class Poller:
         try:
             state = json.loads(STATE_PATH.read_text(encoding="utf-8"))
             self.backoff = int(state.get("backoff", 1))
+            self.sources_last_run = state.get("sources_last_run", {})
             if state.get("next_scan_at"):
                 self.next_scan_at = datetime.fromisoformat(state["next_scan_at"])
         except (OSError, ValueError):
@@ -55,6 +58,7 @@ class Poller:
         STATE_PATH.write_text(json.dumps({
             "backoff": self.backoff,
             "next_scan_at": self.next_scan_at.isoformat() if self.next_scan_at else None,
+            "sources_last_run": self.sources_last_run,
         }), encoding="utf-8")
 
     @property
@@ -168,6 +172,7 @@ class Poller:
                 log.warning(self.last_error)
 
             stats["error"] = self.last_error
+            stats["pruned"] = db.prune_stale()
             stats["flagged_ids"] = trust.refresh()
             # Gemini judges the jobs that passed every rule (Gemini, not LinkedIn: runs even after a 999).
             try:
@@ -179,16 +184,58 @@ class Poller:
             except Exception:
                 log.exception("failed to write intel report")
 
-            # Notify only for jobs that made it to To Apply (every filter, incl. region and the AI).
-            shown = {r["id"] for r in db.list_jobs("new", remote_only=remote_only)}
-            trusted_remote = [dict(r) for r in db.all_jobs() if r["id"] in set(stats["remote_ids"]) & shown]
-            self.last_new = len(trusted_remote) if remote_only else len(new_jobs)
+            shown = self._shown(stats["remote_ids"]) if remote_only else []
+            self.last_new = len(shown) if remote_only else len(new_jobs)
             if notify and remote_only:
-                # Skip old backlog jobs that only just got verified.
-                fresh = [j for j in trusted_remote if ranking.age_hours(j) <= NOTIFY_MAX_AGE_HOURS]
-                if fresh:
-                    await asyncio.to_thread(notify_new, fresh)
+                await self._notify(shown)
             return new_jobs
+
+    def _shown(self, ids) -> list[dict]:
+        """The given jobs that made it to To Apply (every filter, incl. region and the AI)."""
+        cfg = config.load()
+        wanted = set(ids) & {r["id"] for r in db.list_jobs("new", remote_only=cfg["remote_only"])}
+        return [dict(r) for r in db.all_jobs() if r["id"] in wanted]
+
+    async def _notify(self, jobs: list[dict]) -> None:
+        """Fresh jobs only (not old backlog that just got verified); with notify_only_open, only the
+        ones open to Brazil / worldwide — the rest still show on the dashboard."""
+        cfg = config.load()
+        fn = db.functions(cfg)
+        jobs = [j for j in jobs if ranking.age_hours(j) <= NOTIFY_MAX_AGE_HOURS]
+        if cfg.get("notify_only_open", True):
+            jobs = [j for j in jobs if fn.remote_scope(j["title"], j["location"], j["description"]) == "open"]
+        if jobs:
+            await asyncio.to_thread(notify_new, jobs)
+
+    async def fetch_sources(self, force: bool = False) -> int:
+        """Other job boards (sources.py), each on its own interval. Returns how many new jobs reached To Apply."""
+        cfg = config.load()
+        names = list(sources.FETCHERS) if force else sources.due(cfg, self.sources_last_run)
+        names = [n for n in names if (cfg.get("sources") or {}).get(n)]
+        if not names:
+            return 0
+        fn = db.functions(cfg)
+        jobs, errors = await sources.fetch(cfg, names)
+        now = utcnow().isoformat(timespec="seconds")
+        for name in names:
+            self.sources_last_run[name] = now
+        self.sources_errors = errors
+        new_ids = await asyncio.to_thread(db.upsert_external, [j for j in jobs if fn.is_dev_role(j["title"])])
+        await asyncio.to_thread(trust.refresh)
+        shown = self._shown(new_ids)
+        log.info("sources %s: %d new job(s), %d in To Apply", ", ".join(names), len(new_ids), len(shown))
+        await self._notify(shown)
+        self._save_state()
+        return len(shown)
+
+    async def run_sources_forever(self) -> None:
+        """Separate from the LinkedIn loop so its rate-limit backoff doesn't hold the other boards up."""
+        while True:
+            try:
+                await self.fetch_sources()
+            except Exception:
+                log.exception("sources failed")
+            await asyncio.sleep(600)
 
     async def run_forever(self) -> None:
         # After a restart, wait out a scan that was already scheduled (e.g. a rate-limit backoff).

@@ -73,7 +73,7 @@ def evaluate(job, same_title: int, company_total: int, t: dict, patterns: dict) 
             flag("staffing / recruiting agency", False)
         if job["employment_type"] in ("Contract", "Temporary", "Part-time"):
             flag(f"{job['employment_type'].lower()} role", False)
-        if not job["company_url"]:
+        if not job["company_url"] and job["source"] is None:
             flag("no LinkedIn company page", False)
     return flags
 

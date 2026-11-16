@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import ai, checks, config, db, ranking, tailor, trust
+from . import ai, checks, config, db, ranking, sources, tailor, trust
 from .poller import Poller
 
 poller = Poller()
@@ -24,9 +24,10 @@ async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     logging.getLogger("httpx").setLevel(logging.WARNING)
     db.init()
-    task = asyncio.create_task(poller.run_forever())
+    tasks = [asyncio.create_task(poller.run_forever()), asyncio.create_task(poller.run_sources_forever())]
     yield
-    task.cancel()
+    for task in tasks:
+        task.cancel()
 
 
 app = FastAPI(lifespan=lifespan)
@@ -79,7 +80,7 @@ def applicants_level(job) -> str:
 templates.env.filters.update(ago=ago, until=until)
 templates.env.globals.update(
     is_fresh=is_fresh, mentions_remote=mentions_remote, applicants_level=applicants_level,
-    flags_of=trust.parse, poller=poller,
+    flags_of=trust.parse, poller=poller, source_labels=sources.LABELS,
 )
 
 
@@ -267,7 +268,7 @@ def cv_slot(request: Request, job_id: str):
 
 @app.get("/cv/{job_id}/{name}")
 def cv_file(job_id: str, name: str):
-    if name not in ("cv.pdf", "cv.tex") or not job_id.isdigit():
+    if name not in ("cv.pdf", "cv.tex") or not re.fullmatch(r"[A-Za-z0-9_-]+", job_id):
         return Response("", status_code=404)
     path = tailor.OUT_DIR / job_id / name
     if not path.exists():

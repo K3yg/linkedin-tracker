@@ -352,5 +352,44 @@
       "ts/sci",
       "clearance required"
     ]
+  },
+  "notify_only_open": true,
+  "sources": {
+    "every_minutes": 60,
+    "max_age_days": 14,
+    "himalayas": {
+      "country": "Brazil",
+      "queries": [
+        "python",
+        "typescript",
+        "react",
+        "node",
+        "full stack",
+        "ai engineer",
+        "llm"
+      ]
+    },
+    "remotive": {
+      "category": "software-dev"
+    },
+    "remoteok": {"enabled": true},
+    "weworkremotely": {
+      "categories": [
+        "remote-full-stack-programming-jobs",
+        "remote-back-end-programming-jobs",
+        "remote-front-end-programming-jobs"
+      ]
+    },
+    "greenhouse": {
+      "companies": [
+        "gitlab"
+      ]
+    },
+    "lever": {
+      "companies": []
+    },
+    "ashby": {
+      "companies": []
+    }
   }
 }

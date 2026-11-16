@@ -67,6 +67,7 @@ MIGRATIONS = {
     "cv_language": "TEXT",
     "cv_model": "TEXT",
     "cv_created_at": "TEXT",
+    "source": "TEXT",                   # NULL = LinkedIn; otherwise a job board from sources.py
 }
 
 
@@ -125,8 +126,8 @@ def init() -> None:
         conn.execute("UPDATE jobs SET cv_status = 'error', cv_error = 'interrupted by a restart — try again'"
                      " WHERE cv_status = 'working'")
         # Re-run the remote classifier on stored descriptions so improvements reach jobs already read.
-        rows = conn.execute("SELECT id, title, location, description FROM jobs"
-                            " WHERE status = 'new' AND description IS NOT NULL AND description != ''").fetchall()
+        rows = conn.execute("SELECT id, title, location, description FROM jobs WHERE source IS NULL"
+                            " AND status = 'new' AND description IS NOT NULL AND description != ''").fetchall()
         conn.executemany(
             "UPDATE jobs SET workplace = ?, workplace_evidence = ? WHERE id = ?",
             [(*scraper.classify_workplace(r["title"], r["location"] or "", r["description"]), r["id"]) for r in rows],
@@ -136,7 +137,7 @@ def init() -> None:
 def last_seen_at() -> datetime | None:
     """When the newest job was found; lets a restarted poller resume instead of re-scanning 24h."""
     with connect() as conn:
-        value = conn.execute("SELECT MAX(first_seen_at) FROM jobs").fetchone()[0]
+        value = conn.execute("SELECT MAX(first_seen_at) FROM jobs WHERE source IS NULL").fetchone()[0]
     return datetime.fromisoformat(value) if value else None
 
 
@@ -160,10 +161,44 @@ def upsert_jobs(jobs) -> list:
     return new
 
 
+EXTERNAL_FIELDS = ("id", "source", "title", "company", "location", "url", "posted_at", "description",
+                   "salary", "employment_type", "seniority")
+
+
+def upsert_external(jobs: list[dict]) -> list[str]:
+    """Jobs from other boards (sources.py) arrive complete: no detail page to read. Returns new ids."""
+    new = []
+    seen_at = now_iso()
+    with connect() as conn:
+        for j in jobs:
+            cur = conn.execute(
+                f"""INSERT OR IGNORE INTO jobs ({", ".join(EXTERNAL_FIELDS)}, first_seen_at, search_keywords,
+                        workplace, workplace_evidence, apply_type, applicants_checked_at)
+                    VALUES ({", ".join("?" * len(EXTERNAL_FIELDS))}, ?, ?, 'remote', ?, 'offsite', ?)""",
+                (*(j[f] for f in EXTERNAL_FIELDS), seen_at, j["source"],
+                 f"listed on a remote job board ({j['location']})", seen_at),
+            )
+            if cur.rowcount:
+                new.append(j["id"])
+    return new
+
+
+def prune_stale(days: int = 3) -> int:
+    """Drop LinkedIn jobs found more than `days` ago whose page was never read: with a few reads per
+    scan they never will be, and the queue only grows."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat(timespec="seconds")
+    with connect() as conn:
+        return conn.execute(
+            "DELETE FROM jobs WHERE source IS NULL AND status = 'new' AND description IS NULL"
+            " AND cv_status IS NULL AND first_seen_at < ? AND IFNULL(posted_at, first_seen_at) < ?",
+            (since, since),
+        ).rowcount
+
+
 # ---- detail pages -------------------------------------------------------------
 
 NEEDS_DETAILS = (
-    "status = 'new' AND is_dev_role(title)"
+    "source IS NULL AND status = 'new' AND is_dev_role(title)"
     " AND (applicants_checked_at IS NULL OR workplace IS NULL OR description IS NULL)"
 )
 
@@ -189,6 +224,7 @@ def jobs_needing_details(limit: int) -> list[sqlite3.Row]:
             hopeless,
             cfg["easy_apply_only"] and r["apply_type"] != "easy_apply",
             ranking.age_hours(r) > 72,
+            region_rank(r["location"]),
             ranking.is_senior(r),
             "remot" not in (r["search_keywords"] or "").lower(),
             -datetime.fromisoformat(r["posted_at"]).timestamp() if r["posted_at"] else 0,
@@ -201,6 +237,20 @@ def jobs_needing_details(limit: int) -> list[sqlite3.Row]:
         (copies if key in seen else first).append(r)
         seen.add(key)
     return (first + copies)[:limit]
+
+
+LATAM = re.compile(r"(?:argentina|bolivia|chile|colombia|costa rica|dominican|ecuador|el salvador|guatemala|"
+                   r"honduras|mexico|méxico|nicaragua|panama|paraguay|peru|perú|uruguay|venezuela|"
+                   r"latin america|latam)", re.I)
+
+
+def region_rank(location: str | None) -> int:
+    """Where LinkedIn says the job is posted: in Brazil nearly every remote job is open to the user,
+    in the rest of Latin America about a third, elsewhere a few percent (measured on our data)."""
+    loc = location or ""
+    if re.search(r"bra[sz]il", loc, re.I):
+        return 0
+    return 1 if LATAM.search(loc) else 2
 
 
 def pending_details() -> int:
@@ -232,7 +282,8 @@ def jobs_to_recheck(limit: int, older_than_hours: int = 24) -> list[sqlite3.Row]
     since = (datetime.now(timezone.utc) - timedelta(hours=older_than_hours)).isoformat(timespec="seconds")
     with connect() as conn:
         return conn.execute(
-            f"SELECT * FROM jobs WHERE {_view_where('new', cfg['remote_only'])} AND applicants_checked_at < ?"
+            f"SELECT * FROM jobs WHERE {_view_where('new', cfg['remote_only'])} AND source IS NULL"
+            " AND applicants_checked_at < ?"
             " ORDER BY applicants_checked_at LIMIT ?",
             (since, limit),
         ).fetchall()
@@ -302,7 +353,7 @@ def _passes_rules(cfg: dict, remote_only: bool) -> str:
         " AND IFNULL(applicants_text, '') != 'closed'"  # no longer accepting applications
     )
     if cfg["easy_apply_only"]:
-        where += " AND apply_type = 'easy_apply'"
+        where += " AND (apply_type = 'easy_apply' OR source IS NOT NULL)"  # other boards apply off-site
     if not remote_only:
         return where
     # description IS NOT NULL: verified by the current (strict) classifier, not an older one.

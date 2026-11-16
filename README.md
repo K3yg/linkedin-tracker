@@ -42,6 +42,19 @@ schtasks /create /tn "LinkedIn Job Tracker" /sc onlogon /tr "\"%CD%\run.bat\""
    `uv run python -m app.ai 50`.
 7. Write `intel/latest.md`, `intel/scans/<time>.md` and `intel/jobs.jsonl`.
 
+## Other job boards (`app/sources.py`)
+
+LinkedIn rate-limits logged-out traffic, so jobs also come from boards with public APIs / RSS, each
+checked hourly on its own loop (a LinkedIn backoff doesn't hold them up):
+
+- **Himalayas** — searched with `country: Brazil`, so every result hires in Brazil (or worldwide)
+- **Remotive** (every 6h, as it asks), **Remote OK**, **We Work Remotely** (RSS categories)
+- **Greenhouse / Lever / Ashby** — company job boards; add the company's board name
+  (`boards.greenhouse.io/<name>`, `jobs.lever.co/<name>`, `jobs.ashbyhq.com/<name>`), remote postings only
+
+They arrive with the full description, go through the same title / trust / region / seniority filters,
+and show the board's name where LinkedIn jobs show the applicant count. Apply on their site.
+
 ## Tailored CVs
 
 Click **Tailor CV** on a job (To Apply or Applied). In ~20s it shows **CV PDF ↗**, the `.tex`, and
@@ -83,7 +96,12 @@ Use it to study what spam looks like before adding rules; your real data is unto
   and `CV_NAME` (tailored PDF file name). Your CV goes in `cv/base.tex`, also not committed.
 - `remote_region`: `allowed` regions you can work from (Brazil, LATAM…); `hide_unstated: true` also hides
   remote jobs that don't say where they hire
-- `poll_minutes`, `max_pages_per_search` (10 jobs/page), `detail_checks_per_scan`, `lookback_seconds`
+- `poll_minutes`, `max_pages_per_search` (10 jobs/page), `detail_checks_per_scan`, `lookback_seconds`.
+  Detail reads go to jobs posted in Brazil first, then Latin America (where remote jobs are open to you);
+  LinkedIn jobs still unread after 3 days are dropped. A rate-limit backoff survives restarts
+  (`data/poller_state.json`).
+- `sources`: the other job boards above (`every_minutes`, `max_age_days`, per-board settings)
+- `notify_only_open`: notify only for jobs open to Brazil / worldwide (the rest still show)
 - `role_keywords` / `exclude_title_words`: the software-dev title filter
 - `profile`: your skills (`skills` +points, `avoid` −points) and `min_fit`; jobs below it are hidden.
   Ranking ("Best match") = fit + open to Brazil + startup (company size from LinkedIn) + mid-level

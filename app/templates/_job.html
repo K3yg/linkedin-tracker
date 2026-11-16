@@ -1,6 +1,8 @@
 {% from "_cv.html" import cv_slot %}
 {% macro applicants(j) %}
-  {% if j.applicants is not none %}
+  {% if j.source %}
+    <span class="pill unknown" data-tip="Found on {{ source_labels.get(j.source, j.source) }} — other boards don't show applicant counts; apply on their site">{{ source_labels.get(j.source, j.source) }}</span>
+  {% elif j.applicants is not none %}
     <span class="pill {{ applicants_level(j) }}" data-tip="{{ j.applicants_text }} people applied so far — fewer means better odds">{{ j.applicants_text }}</span>
   {% elif j.applicants_text == "closed" %}
     <span class="pill unknown" data-tip="No longer accepting applications">closed</span>
@@ -82,7 +84,7 @@
   <div class="sub">{{ j.company }}</div>
   <div class="meta">{{ where(j) }} · {{ j.posted_at|ago }} {{ tags(j) }}</div>
   <div class="card-actions">
-    <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on LinkedIn">Open ↗</a>
+    <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on {{ source_labels.get(j.source, j.source) if j.source else 'LinkedIn' }}">Open ↗</a>
     {{ actions(j) }}
   </div>
   {% if status in ("new", "applied") %}{{ cv_slot(j) }}{% endif %}
