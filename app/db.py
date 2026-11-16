@@ -10,7 +10,9 @@ from .config import ROOT
 
 DB_PATH = ROOT / "data" / "jobs.db"  # the scout run points this at data/scout.db
 STATUSES = ("new", "applied", "dismissed")
-VIEWS = ("new", "flagged", "applied", "dismissed")  # "flagged" = new jobs that look suspicious
+# "new" = LinkedIn jobs to apply to, "boards" = the same from other job boards (sources.py),
+# "flagged" = new jobs that look suspicious
+VIEWS = ("new", "boards", "flagged", "applied", "dismissed")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -369,8 +371,8 @@ def _ai_hides(cfg: dict) -> bool:
 
 def _view_where(view: str, remote_only: bool) -> str:
     cfg = config.load()
-    if view == "new":
-        where = _passes_rules(cfg, remote_only)
+    if view in ("new", "boards"):
+        where = _passes_rules(cfg, remote_only) + (" AND source IS NULL" if view == "new" else " AND source IS NOT NULL")
         return where + (" AND IFNULL(ai_verdict, '') != 'skip'" if _ai_hides(cfg) else "")
     if view == "flagged":
         # Suspicious, or the AI said it isn't worth applying (it only reads jobs that pass the rules).
@@ -394,7 +396,7 @@ def list_jobs(view: str = "new", q: str = "", sort: str = "applicants", remote_o
     if q:
         sql += " AND (title LIKE ? OR company LIKE ? OR location LIKE ?)"
         args += [f"%{q}%"] * 3
-    order = ORDER[sort if sort in ("applicants", "newest") else "applicants"] if view == "new" else ORDER[view]
+    order = ORDER[sort if sort in ("applicants", "newest") else "applicants"] if view in ("new", "boards") else ORDER[view]
     sql += f" ORDER BY {order} LIMIT 500"
     with connect() as conn:
         return conn.execute(sql, args).fetchall()

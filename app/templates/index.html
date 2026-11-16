@@ -35,16 +35,20 @@
                hx-trigger="input changed delay:250ms, search">
       </form>
 
-      {% if status == "new" %}
+      {% if status in ("new", "boards") %}
       <div class="segmented small" role="group" aria-label="Sort">
-        <a href="/?status=new&sort=match{% if q %}&q={{ q|urlencode }}{% endif %}"
+        <a href="/?status={{ status }}&sort=match{% if q %}&q={{ q|urlencode }}{% endif %}"
            class="{{ 'on' if sort == 'match' }}"
            data-tip="Your skills, startups first, mid-level, Easy Apply, few applicants, fresh">Best match</a>
+        {% if status == "new" %}
         <a href="/?status=new&sort=applicants{% if q %}&q={{ q|urlencode }}{% endif %}"
            class="{{ 'on' if sort == 'applicants' }}" data-tip="Least competition first">Fewest applicants</a>
-        <a href="/?status=new&sort=newest{% if q %}&q={{ q|urlencode }}{% endif %}"
+        {% endif %}
+        <a href="/?status={{ status }}&sort=newest{% if q %}&q={{ q|urlencode }}{% endif %}"
            class="{{ 'on' if sort == 'newest' }}" data-tip="Most recently posted first">Newest</a>
       </div>
+      {% endif %}
+      {% if status == "new" %}
       <button class="btn danger" data-tip="Delete all jobs in To Apply and search again from scratch"
               hx-post="/api/reset"
               hx-confirm="Delete every job in To Apply and search again from scratch? Applied and dismissed jobs are kept.">

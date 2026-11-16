@@ -193,7 +193,8 @@ class Poller:
     def _shown(self, ids) -> list[dict]:
         """The given jobs that made it to To Apply (every filter, incl. region and the AI)."""
         cfg = config.load()
-        wanted = set(ids) & {r["id"] for r in db.list_jobs("new", remote_only=cfg["remote_only"])}
+        wanted = set(ids) & {r["id"] for view in ("new", "boards")
+                             for r in db.list_jobs(view, remote_only=cfg["remote_only"])}
         return [dict(r) for r in db.all_jobs() if r["id"] in wanted]
 
     async def _notify(self, jobs: list[dict]) -> None:

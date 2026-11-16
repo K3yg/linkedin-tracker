@@ -138,7 +138,7 @@ def _list_context(status: str, q: str, sort: str) -> dict:
     cfg = config.load()
     rows = db.list_jobs(status, q, "applicants" if sort == "match" else sort, remote_only=cfg["remote_only"])
     jobs = _annotate(rows, cfg)
-    if sort == "match" and status == "new":
+    if sort == "match" and status in ("new", "boards"):
         jobs.sort(key=lambda j: j["match"], reverse=True)
     jobs = _collapse_copies(jobs)
     picks = []

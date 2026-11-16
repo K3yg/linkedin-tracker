@@ -18,7 +18,7 @@
 {% macro ai_tag(j) %}
   {% if j.ai_verdict %}
     <span class="tag ai {{ j.ai_verdict }}" data-tip="AI ({{ j.ai_verdict }}): {{ j.ai_summary }}{% for r in j.ai_reasons_list %} · {{ r }}{% endfor %}">AI {{ j.ai_score }}</span>
-  {% elif ai_on and status == "new" %}
+  {% elif ai_on and status in ("new", "boards") %}
     <span class="tag muted" data-tip="Waiting for the AI check — runs after each scan">AI ···</span>
   {% endif %}
 {% endmacro %}
@@ -51,7 +51,7 @@
 
 {% macro actions(j) %}
   {# Handled by /static/app.js: the card leaves at once and the request runs in the background. #}
-  {% if status in ("new", "flagged") %}
+  {% if status in ("new", "boards", "flagged") %}
     <button class="btn primary" data-tip="I applied — move to the Applied tab"
             data-act="/api/jobs/{{ j.id }}/status" data-to="applied">Applied</button>
     {% if status == "flagged" %}
@@ -87,7 +87,7 @@
     <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on {{ source_labels.get(j.source, j.source) if j.source else 'LinkedIn' }}">Open ↗</a>
     {{ actions(j) }}
   </div>
-  {% if status in ("new", "applied") %}{{ cv_slot(j) }}{% endif %}
+  {% if status in ("new", "boards", "applied") %}{{ cv_slot(j) }}{% endif %}
 </article>
 {% endmacro %}
 
@@ -98,7 +98,7 @@
     <a class="title" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
     <div class="meta">{{ j.company }} · {{ where(j) }} {{ tags(j) }}</div>
     {{ reasons(j) }}
-    {% if status in ("new", "applied") %}{{ cv_slot(j) }}{% endif %}
+    {% if status in ("new", "boards", "applied") %}{{ cv_slot(j) }}{% endif %}
   </div>
   <time class="when">
     {% if status == "applied" %}applied {{ j.applied_at|ago }}{% else %}{{ j.posted_at|ago }}{% endif %}
