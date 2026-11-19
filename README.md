@@ -100,6 +100,12 @@ Use it to study what spam looks like before adding rules; your real data is unto
   Detail reads go to jobs posted in Brazil first, then Latin America (where remote jobs are open to you);
   LinkedIn jobs still unread after 3 days are dropped. A rate-limit backoff survives restarts
   (`data/poller_state.json`).
+- `email_alerts`: read LinkedIn's job-alert emails over IMAP (read-only) so finding jobs costs no
+  LinkedIn request. Create alerts on LinkedIn (logged in, so its Remote filter works), put
+  `IMAP_USER` / `IMAP_PASSWORD` in `.env` (Gmail: an app password), set `enabled: true`. `mailbox`
+  is the folder or Gmail label holding them (`INBOX` by default). While alerts work, the LinkedIn
+  search only runs every `search_minutes` (180); detail reads keep the `poll_minutes` pace.
+  Check what it reads: `uv run python -m app.mail_alerts`.
 - `sources`: the other job boards above (`every_minutes`, `max_age_days`, per-board settings)
 - `notify_only_open`: notify only for jobs open to Brazil / worldwide (the rest still show)
 - `role_keywords` / `exclude_title_words`: the software-dev title filter
@@ -117,5 +123,9 @@ Use it to study what spam looks like before adding rules; your real data is unto
   job description. Postings that only mark "Remote" in LinkedIn's UI badge without saying it in
   the text are classified "unknown" and hidden.
 - Too many requests → HTTP 429. The poller backs off automatically (up to 8x the interval).
+- HTTP 999 is bot detection, not a quota, and asking again while flagged makes it worse: LinkedIn
+  is paused entirely (Scan Now included) for 6h, then 12h, then 24h while it keeps answering 999.
+- Every scan's requests and the block that ended it go to `data/ratelimit_log.jsonl`; see which
+  request kind gets refused, how many requests in and at what hour: `uv run python -m app.ratelimits`.
 
 Data lives in `data/jobs.db` (SQLite).

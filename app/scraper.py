@@ -32,7 +32,12 @@ RELATIVE_RE = re.compile(r"(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+
 
 
 class RateLimited(Exception):
-    pass
+    """429 = too many requests (passes by itself); 999 = LinkedIn's bot detection flagged us, and
+    asking again while flagged makes it worse."""
+
+    def __init__(self, status: int):
+        super().__init__(f"HTTP {status}")
+        self.status = status
 
 
 @dataclass
@@ -110,7 +115,7 @@ async def search(
         timeout=20,
     )
     if resp.status_code in (429, 999):
-        raise RateLimited(f"HTTP {resp.status_code}")
+        raise RateLimited(resp.status_code)
     if resp.status_code == 400:  # returned when paging past the last result
         return []
     resp.raise_for_status()
@@ -219,7 +224,7 @@ async def fetch_company(client: httpx.AsyncClient, url: str) -> Company:
     """Size / founding year / type from the public company page (cached per company)."""
     resp = await client.get(url, headers=HEADERS, timeout=20)
     if resp.status_code in (429, 999):
-        raise RateLimited(f"HTTP {resp.status_code}")
+        raise RateLimited(resp.status_code)
     if resp.status_code != 200:
         return Company()
     tree = HTMLParser(resp.text)
@@ -279,7 +284,7 @@ async def fetch_details(client: httpx.AsyncClient, job_id: str, title: str, loca
     """Everything beyond the search card lives on the job's detail page (one request per job)."""
     resp = await client.get(DETAIL_URL.format(job_id), headers=HEADERS, timeout=20)
     if resp.status_code in (429, 999):
-        raise RateLimited(f"HTTP {resp.status_code}")
+        raise RateLimited(resp.status_code)
     if resp.status_code in (404, 410):
         return Details(applicants_text="closed")
     resp.raise_for_status()

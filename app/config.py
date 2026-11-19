@@ -15,7 +15,12 @@ DEFAULTS = {
     "remote_only": True,
     # Only Easy Apply jobs (apply on LinkedIn, no account on another site). Also sent to the search.
     "easy_apply_only": True,
-    "rechecks_per_scan": 5,  # re-read jobs shown in To Apply so closed ones drop out
+    "rechecks_per_scan": 5,
+    # LinkedIn job-alert emails read over IMAP (mail_alerts.py): finds jobs without asking LinkedIn.
+    # While they work, the LinkedIn search only runs every `search_minutes`; detail reads keep the
+    # poll_minutes pace.
+    "email_alerts": {"enabled": False, "mailbox": "INBOX", "days": 2, "every_minutes": 15},
+    "search_minutes": 180,  # re-read jobs shown in To Apply so closed ones drop out
     # Gemini reads each job that passes the filters and says whether it's worth applying (ai.py).
     "ai": {"enabled": True, "model": "gemini-2.5-flash", "tailor_model": "gemini-3.8-flash",
            "per_scan": 15, "hide_skips": True},

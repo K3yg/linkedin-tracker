@@ -219,11 +219,23 @@ def jobs_needing_details(limit: int) -> list[sqlite3.Row]:
         read = {copy_key(r["company"], r["title"])
                 for r in conn.execute("SELECT company, title FROM jobs WHERE description IS NOT NULL")}
 
+    def hopeless(r) -> bool:
+        return (bool(blocked and blocked.search(r["company"] or ""))
+                or fn.scope(r["title"], "", "")[0] == "restricted")
+
+    def worth_reading(r) -> bool:
+        """Every detail page counts toward LinkedIn's rate limit. Pages of jobs posted outside Brazil /
+        Latin America paid off 1 time in 108 (Nov 2026), so they're only read when an email alert
+        (whose keywords ask for latam / anywhere / worldwide) found them, or with read_all_regions."""
+        if hopeless(r):
+            return False
+        return (region_rank(r["location"]) < 2 or cfg.get("read_all_regions", False)
+                or (r["search_keywords"] or "").startswith("email alert"))
+
+    rows = [r for r in rows if worth_reading(r)]
+
     def priority(r) -> tuple:
-        hopeless = (bool(blocked and blocked.search(r["company"] or ""))
-                    or fn.scope(r["title"], "", "")[0] == "restricted")
         return (
-            hopeless,
             cfg["easy_apply_only"] and r["apply_type"] != "easy_apply",
             ranking.age_hours(r) > 72,
             region_rank(r["location"]),
@@ -241,16 +253,16 @@ def jobs_needing_details(limit: int) -> list[sqlite3.Row]:
     return (first + copies)[:limit]
 
 
-LATAM = re.compile(r"(?:argentina|bolivia|chile|colombia|costa rica|dominican|ecuador|el salvador|guatemala|"
+LATAM = re.compile(r"\b(?:argentina|bolivia|chile|colombia|costa rica|dominican|ecuador|el salvador|guatemala|"
                    r"honduras|mexico|méxico|nicaragua|panama|paraguay|peru|perú|uruguay|venezuela|"
-                   r"latin america|latam)", re.I)
+                   r"latin america|latam)\b", re.I)
 
 
 def region_rank(location: str | None) -> int:
     """Where LinkedIn says the job is posted: in Brazil nearly every remote job is open to the user,
     in the rest of Latin America about a third, elsewhere a few percent (measured on our data)."""
     loc = location or ""
-    if re.search(r"bra[sz]il", loc, re.I):
+    if re.search(r"\bbra[sz]il\b", loc, re.I):
         return 0
     return 1 if LATAM.search(loc) else 2
 

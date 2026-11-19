@@ -7,6 +7,13 @@
   "remote_only": true,
   "easy_apply_only": true,
   "rechecks_per_scan": 1,
+  "email_alerts": {
+    "enabled": false,
+    "mailbox": "INBOX",
+    "days": 2,
+    "every_minutes": 15
+  },
+  "search_minutes": 180,
   "ai": {
     "enabled": false,
     "model": "gemini-2.5-flash",
@@ -111,14 +118,6 @@
     {
       "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
       "location": "Latin America"
-    },
-    {
-      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
-      "location": "United States"
-    },
-    {
-      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
-      "location": "European Union"
     }
   ],
   "role_keywords": [
@@ -322,7 +321,8 @@
       "Programmers.io",
       "INDI Staffing Services",
       "Inviso",
-      "Crossover"
+      "Crossover",
+      "CoolPeople Technology"
     ],
     "trusted_companies": [],
     "hide_phrases": [
