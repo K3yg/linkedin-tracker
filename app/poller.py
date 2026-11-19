@@ -15,11 +15,9 @@ from .notify import notify_new
 
 log = logging.getLogger(__name__)
 LOOKBACK_MARGIN_S = 600  # overlap between scans so nothing slips through
-MAX_BACKOFF = 8  # HTTP 429: the interval doubles per refused scan, up to 8x
-# HTTP 999 is bot detection, not a quota: asking again while flagged makes it worse, so LinkedIn
-# pauses entirely (search, details, Scan Now) for 6h, then 12h, then 24h if it keeps answering 999.
-BLOCK_COOLDOWN = timedelta(hours=6)
-MAX_BLOCK_COOLDOWN = timedelta(hours=24)
+# Any refusal (429 or 999) pauses LinkedIn entirely (search, details, Scan Now) for 24h, then one
+# try. Retrying every few hours (the old doubling backoff) kept a 429 going for 28h+ (Nov 2026).
+BLOCK_COOLDOWN = timedelta(hours=24)
 # Email alerts count as working (so the search slows to search_minutes) for this long after a read.
 ALERTS_FRESH = timedelta(hours=2)
 # Logged-out company pages answer HTTP 999 most of the time. That used to fail the whole scan and
@@ -118,8 +116,8 @@ class Poller:
             stats = {"queries": 0, "cards": 0, "saved": 0, "title_filtered": 0, "checked": 0,
                      "remote": 0, "not_remote": 0, "unknown": 0, "remote_ids": [], "flagged_ids": []}
             if self.paused:
-                self.last_error = (f"LinkedIn flagged us as a bot (HTTP 999); no requests to it until "
-                                   f"{self.paused_until.astimezone():%H:%M}")
+                self.last_error = (f"LinkedIn refused us; no requests to it until "
+                                   f"{self.paused_until.astimezone():%d/%m %H:%M}")
                 log.info(self.last_error)
             else:
                 scan_log = ratelimits.ScanLog()
@@ -132,16 +130,10 @@ class Poller:
                     self.blocks = 0
                 except scraper.RateLimited as e:
                     scan_log.blocked(kind, e.status)
-                    if e.status == 999:
-                        self.blocks += 1
-                        cooldown = min(BLOCK_COOLDOWN * 2 ** (self.blocks - 1), MAX_BLOCK_COOLDOWN)
-                        self.paused_until = utcnow() + cooldown
-                        self.last_error = (f"LinkedIn flagged us as a bot (HTTP 999 on a {kind} request); "
-                                           f"pausing it for {cooldown.total_seconds() / 3600:.0f}h")
-                    else:
-                        self.backoff = min(self.backoff * 2, MAX_BACKOFF)
-                        self.last_error = (f"LinkedIn rate-limited the scan ({e} on a {kind} request); "
-                                           f"slowing down {self.backoff}x")
+                    self.blocks += 1
+                    self.paused_until = utcnow() + BLOCK_COOLDOWN
+                    self.last_error = (f"LinkedIn refused the scan ({e} on a {kind} request); "
+                                       f"no requests to it for 24h, then one try")
                     log.warning(self.last_error)
                 except httpx.HTTPError as e:
                     self.last_error = f"Network error: {e!r}"

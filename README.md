@@ -122,9 +122,8 @@ Use it to study what spam looks like before adding rules; your real data is unto
 - LinkedIn ignores its own remote filter when logged out, so remote-ness is inferred from the
   job description. Postings that only mark "Remote" in LinkedIn's UI badge without saying it in
   the text are classified "unknown" and hidden.
-- Too many requests → HTTP 429. The poller backs off automatically (up to 8x the interval).
-- HTTP 999 is bot detection, not a quota, and asking again while flagged makes it worse: LinkedIn
-  is paused entirely (Scan Now included) for 6h, then 12h, then 24h while it keeps answering 999.
+- When LinkedIn refuses (HTTP 429 or 999), asking again keeps the block going, so LinkedIn is
+  paused entirely (Scan Now included) for 24h, then tried once; another refusal means another 24h.
 - Every scan's requests and the block that ended it go to `data/ratelimit_log.jsonl`; see which
   request kind gets refused, how many requests in and at what hour: `uv run python -m app.ratelimits`.
 

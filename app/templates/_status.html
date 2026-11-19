@@ -5,7 +5,7 @@
   {% if poller.scanning %}
     <span>Scanning…</span>
   {% elif poller.paused %}
-    <span data-tip="LinkedIn answered HTTP 999 (bot detection). Asking again while flagged makes it worse, so the tracker sends it nothing until then — Scan Now included. Email alerts and the other boards keep running.">Blocked by LinkedIn · resumes {{ poller.paused_until|until }}</span>
+    <span data-tip="LinkedIn refused our requests (HTTP 429/999). Asking again while it refuses keeps the block going, so the tracker sends it nothing until then, then tries once — Scan Now included. Email alerts and the other boards keep running.">Blocked by LinkedIn · resumes {{ poller.paused_until|until }}</span>
   {% elif poller.last_error %}
     <span data-tip="LinkedIn is temporarily refusing requests from this PC because we asked too much, too fast. The tracker waits and retries by itself.">Rate-limited · retry {{ poller.next_scan_at|until }}</span>
   {% elif poller.last_attempt_at %}
