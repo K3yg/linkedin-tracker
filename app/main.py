@@ -4,7 +4,7 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Form, Request
@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import ai, checks, config, db, ranking, sources, tailor, trust
+from . import ai, apify, checks, config, db, ranking, sources, tailor, trust
 from .poller import Poller
 
 poller = Poller()
@@ -81,6 +81,8 @@ templates.env.filters.update(ago=ago, until=until)
 templates.env.globals.update(
     is_fresh=is_fresh, mentions_remote=mentions_remote, applicants_level=applicants_level,
     flags_of=trust.parse, poller=poller, source_labels=sources.LABELS,
+    apify_cfg=lambda: (lambda o: o if o["enabled"] else None)(config.load()["apify"]),
+    apify_spent=db.apify_month_spent, apify_next_at=lambda: poller.apify_next_at(config.load()),
 )
 
 
@@ -148,7 +150,7 @@ def _list_context(status: str, q: str, sort: str) -> dict:
         jobs = [j for j in jobs if j["id"] not in pick_ids]
     return {
         "status": status, "q": q, "sort": sort, "jobs": jobs, "picks": picks,
-        "remote_only": cfg["remote_only"], "pending": db.pending_details() if cfg["remote_only"] else 0,
+        "remote_only": cfg["remote_only"], "pending": db.pending_details() if cfg["remote_only"] and not cfg["apify"]["enabled"] else 0,
         "ai_on": ai.enabled(cfg),
         "easy_only": cfg["easy_apply_only"],
     }
@@ -179,14 +181,41 @@ def tabs(request: Request, status: str = "new", q: str = "", sort: str = "match"
 @app.get("/scan-status")
 def scan_status(request: Request, was_scanning: int = 0):
     resp = templates.TemplateResponse(request, "_status.html", {})
-    if was_scanning and not poller.scanning:
+    if was_scanning and not (poller.scanning or poller.apify_running):
         resp.headers["HX-Trigger"] = "scanDone"
     return resp
 
 
+@app.get("/costs")
+async def costs(request: Request):
+    """What the paid Apify runs cost: this month, projected, per job, and every run."""
+    cfg = config.load()
+    now = datetime.now(timezone.utc)
+    days_in_month = ((now.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)).day
+    totals = db.apify_month_totals()
+    per_day = totals["usd"] / max(now.day - 1 + now.hour / 24, 1)
+    return templates.TemplateResponse(request, "costs.html", {
+        "o": cfg["apify"], "totals": totals, "runs": db.apify_runs(50),
+        "account": await apify.account_usage(),
+        "projection": per_day * days_in_month, "days_in_month": days_in_month,
+        "runs_per_day": 24 * 60 / float(cfg["apify"]["every_minutes"]),
+    })
+
+
 # ---- actions ----------------------------------------------------------------
 
+def _run_in_background(coro) -> None:
+    task = asyncio.create_task(coro)
+    _background.add(task)
+    task.add_done_callback(_background.discard)
+
+
 async def _start_scan() -> None:
+    if config.load()["apify"]["enabled"]:  # LinkedIn jobs come from Apify; scan() makes no LinkedIn requests
+        if not poller.apify_running:
+            _run_in_background(poller.fetch_apify(force=True))
+            await asyncio.sleep(0)
+        return
     if not poller.scanning:
         task = asyncio.create_task(poller.scan())
         _background.add(task)
@@ -211,6 +240,12 @@ async def reset():
 
 
 # Job/company actions are sent by app.js, which updates the page optimistically.
+
+@app.post("/api/jobs/{job_id}/opened", status_code=204)
+def mark_opened(job_id: str):
+    """Step 2 of the job card was clicked: Applied becomes the next step."""
+    db.set_opened(job_id)
+
 
 @app.post("/api/jobs/{job_id}/status", status_code=204)
 def set_status(job_id: str, to: str = Form(...)):
@@ -241,29 +276,29 @@ def trust_company(company: str = Form(...)):
 
 # ---- tailored CVs (tailor.py) ---------------------------------------------------
 
-def _cv_slot(request: Request, job_id: str):
+def _cv_slot(request: Request, job_id: str, steps: int = 0):
     with db.connect() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     if not row:
         return Response("", status_code=404)
     j = dict(row)
     j["cv"] = json.loads(row["cv_changes"]) if row["cv_changes"] else None
-    return templates.TemplateResponse(request, "_cv.html", {"j": j})
+    return templates.TemplateResponse(request, "_cv.html", {"j": j, "steps": bool(steps)})
 
 
 @app.post("/api/jobs/{job_id}/cv")
-async def make_cv(request: Request, job_id: str):
+async def make_cv(request: Request, job_id: str, steps: int = 0):
     """Start tailoring the CV to this job in the background; the slot polls until it's done."""
     db.set_cv(job_id, "working")
     task = asyncio.create_task(tailor.tailor(job_id))
     _background.add(task)
     task.add_done_callback(_background.discard)
-    return _cv_slot(request, job_id)
+    return _cv_slot(request, job_id, steps)
 
 
 @app.get("/cv-slot/{job_id}")
-def cv_slot(request: Request, job_id: str):
-    return _cv_slot(request, job_id)
+def cv_slot(request: Request, job_id: str, steps: int = 0):
+    return _cv_slot(request, job_id, steps)
 
 
 @app.get("/cv/{job_id}/{name}")

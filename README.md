@@ -42,6 +42,22 @@ schtasks /create /tn "LinkedIn Job Tracker" /sc onlogon /tr "\"%CD%\run.bat\""
    `uv run python -m app.ai 50`.
 7. Write `intel/latest.md`, `intel/scans/<time>.md` and `intel/jobs.jsonl`.
 
+## LinkedIn via Apify (`app/apify.py`) — paid, the default
+
+LinkedIn blocks this PC's logged-out requests, so LinkedIn jobs come from the Apify actor
+`bebity/linkedin-jobs-scraper` (set `APIFY_TOKEN` in `.env`). While `apify.enabled` is on, the tracker
+sends LinkedIn **no requests at all**. Each run returns remote jobs from the last 24h with the description,
+applicant count and apply type, so they go straight to To Apply.
+
+- About US$0.001 per job plus a small fee per run. `every_minutes` (480 = 3 runs/day), `rows` and
+  `max_usd_per_run` (enforced by Apify) keep it at a few dollars a month.
+- `monthly_budget_usd` (default 4.00, under the free US$5 credit) skips any run that could cross it. The
+  check uses the larger of the tracker's own runs and Apify's account usage.
+- The very first run waits for **Scan Now**; after that it runs on the interval.
+- **Costs** (top toolbar, or the US$ chip in the title bar) shows the month's spend, the projection, the
+  Apify account usage and every run.
+- Test the mapping for free: `uv run python -m app.apify --from-file dataset.json`.
+
 ## Other job boards (`app/sources.py`)
 
 LinkedIn rate-limits logged-out traffic, so jobs also come from boards with public APIs / RSS, each

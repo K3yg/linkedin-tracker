@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Costs · Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Silkscreen&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+</head>
+<body data-view="costs">
+<div class="desktop">
+  <div class="window">
+    <header class="titlebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="logo">JOB<span>/</span>TRACKER<i class="cursor"></i></div>
+      {% include "_status.html" %}
+    </header>
+
+    <div class="toolbar">
+      <a class="btn" href="/">← Jobs</a>
+      <div class="section-head" style="margin:0">
+        <h2>Costs</h2>
+        <p>Apify ({{ o.actor.replace("~", "/") }}) — the paid service that brings LinkedIn jobs without LinkedIn blocking this PC</p>
+      </div>
+    </div>
+
+    <main>
+      {% set budget = o.monthly_budget_usd %}
+      {% set spent = totals.usd %}
+      {% set pct = (100 * spent / budget) if budget else 0 %}
+      <div class="cost-grid">
+        <div class="cost-box">
+          <div class="cost-label">Spent this month</div>
+          <div class="cost-big">US${{ "%.2f"|format(spent) }}</div>
+          <div class="meter {{ 'warn' if pct >= 80 }}"><i style="width: {{ [pct, 100]|min }}%"></i></div>
+          <div class="muted">of the US${{ "%.2f"|format(budget) }} monthly limit · runs stop before crossing it</div>
+        </div>
+        <div class="cost-box">
+          <div class="cost-label">Projected for the month</div>
+          <div class="cost-big">US${{ "%.2f"|format(projection) }}</div>
+          <div class="muted">at this month's pace · {{ runs_per_day|round(1) }} run(s)/day, up to US${{ "%.2f"|format(o.max_usd_per_run) }} each</div>
+        </div>
+        <div class="cost-box">
+          <div class="cost-label">Apify account (whole account)</div>
+          {% if account %}
+          <div class="cost-big">US${{ "%.2f"|format(account.used) }}{% if account.limit %} <span class="muted small">/ {{ "%.2f"|format(account.limit) }}</span>{% endif %}</div>
+          <div class="muted">Apify's own number, includes runs from its website · {% if account.limit %}US${{ "%.2f"|format([account.limit - account.used, 0]|max) }} left{% endif %}{% if account.cycle_end %} · resets {{ account.cycle_end[:10] }}{% endif %}</div>
+          {% else %}
+          <div class="cost-big muted">—</div>
+          <div class="muted">Couldn't reach Apify right now</div>
+          {% endif %}
+        </div>
+        <div class="cost-box">
+          <div class="cost-label">Per job this month</div>
+          <div class="cost-big">{% if totals.shown %}US${{ "%.3f"|format(spent / totals.shown) }}{% else %}—{% endif %}</div>
+          <div class="muted">{{ totals.runs }} run(s) · {{ totals.jobs }} jobs returned · {{ totals.new_jobs }} new · {{ totals.shown }} reached To Apply</div>
+        </div>
+      </div>
+
+      <div class="group-head">Last runs <span>{{ runs|length }}</span></div>
+      {% if runs %}
+      <div class="group">
+        <table class="cost-table">
+          <thead><tr><th>When</th><th>Status</th><th>Jobs</th><th>New</th><th>To Apply</th><th>Cost</th></tr></thead>
+          <tbody>
+          {% for r in runs %}
+          <tr>
+            <td>{{ r.started_at|ago }}</td>
+            <td>{% if r.status == "SUCCEEDED" %}<span class="tag ok">ok</span>{% elif r.status == "skipped" %}<span class="tag muted" data-tip="{{ r.error }}">skipped</span>{% else %}<span class="tag warn" data-tip="{{ r.error }}">{{ r.status|lower }}</span>{% endif %}</td>
+            <td>{{ r.items }}</td>
+            <td>{{ r.new_jobs }}</td>
+            <td>{{ r.shown }}</td>
+            <td>US${{ "%.4f"|format(r.usd) }}</td>
+          </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty">No runs yet — press Scan Now to run the first one</div>
+      {% endif %}
+      <p class="hint" style="margin-top:14px">Limits live in config.json under "apify": monthly_budget_usd, max_usd_per_run, every_minutes, rows. Gemini (AI check / CV tailoring) isn't counted here.</p>
+    </main>
+  </div>
+</div>
+</body>
+</html>

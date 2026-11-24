@@ -350,3 +350,65 @@ section { margin-bottom: 28px; }
 .tag.cv-reworded, .tag.cv-translated { color: #0a7ea4; background: color-mix(in srgb, #0a7ea4 14%, transparent); }
 .tag.cv-moved { color: var(--mid); background: color-mix(in srgb, var(--mid) 12%, transparent); }
 .tag.cv-kept { color: var(--tertiary); }
+
+/* ---- job card steps: 1 Tailor CV → 2 Open & apply → 3 Applied; only the next step is orange ---- */
+.card-actions { flex-wrap: wrap; row-gap: 8px; }
+.card-actions .btn.icon { margin-left: 0; }
+.card-actions .push { margin-left: auto; }
+.card-actions .cv-slot { margin-top: 0; }
+.step .n {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; margin-right: 2px; border-radius: 50%;
+  font: 600 9.5px/1 var(--mono); color: var(--secondary); background: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.job:not(.opened) .step-cv,
+.job:not(.opened):is(:has(.cv-slot[data-state="done"]), :has(.cv-slot[data-state="none"])) .step-open,
+.job.opened .step-applied {
+  color: #fff; background: var(--accent);
+  box-shadow: inset 0 .5px 0 rgba(255, 255, 255, .3), 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.job:not(.opened) .step-cv:hover,
+.job:not(.opened):is(:has(.cv-slot[data-state="done"]), :has(.cv-slot[data-state="none"])) .step-open:hover,
+.job.opened .step-applied:hover { background: color-mix(in srgb, var(--accent) 88%, #000); }
+.job:not(.opened) .step-cv .n,
+.job:not(.opened):is(:has(.cv-slot[data-state="done"]), :has(.cv-slot[data-state="none"])) .step-open .n,
+.job.opened .step-applied .n { color: var(--accent); background: #fff; }
+.cv-slot[data-state="none"] { display: none; }
+.cv-ok { font-size: 12px; font-weight: 600; color: var(--good); white-space: nowrap; }
+
+/* ⋯ menu with the extra CV actions */
+.menu { position: relative; }
+.menu > summary { list-style: none; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-btn { width: 26px; padding: 0; font-weight: 700; letter-spacing: 1px; }
+.menu[open] > .menu-btn { background: color-mix(in srgb, var(--fill) 100%, var(--text) 10%); }
+.menu-pop {
+  position: absolute; z-index: 40; top: calc(100% + 6px); left: 0;
+  width: min(440px, 80vw); max-height: 60vh; overflow: auto;
+  display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--card); border-radius: 10px; box-shadow: var(--shadow-card-hover), 0 0 0 .5px var(--separator);
+}
+.row .menu-pop { position: static; margin-top: 6px; box-shadow: 0 0 0 .5px var(--separator); }
+.menu-item {
+  display: block; width: 100%; padding: 6px 9px; text-align: left;
+  font: 500 12.5px/1.3 var(--sans); color: var(--text); background: none; border: 0; border-radius: 6px; cursor: pointer;
+}
+.menu-item:hover { background: var(--hover); }
+.menu-pop .cv-changes { padding: 4px 9px; }
+
+/* ---- costs ---- */
+.btn.cost { height: 22px; padding: 0 8px; font: 600 11px var(--mono); color: var(--secondary); }
+.btn.cost.warn { color: var(--high); background: color-mix(in srgb, var(--high) 12%, transparent); }
+.cost-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin-bottom: 28px; }
+.cost-box { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--card); border-radius: 14px; box-shadow: var(--shadow-card); font-size: 12px; }
+.cost-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
+.cost-big { font: 600 26px/1.1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.cost-big .small { font-size: 14px; }
+.meter { height: 6px; background: var(--fill); border-radius: 999px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--good); border-radius: inherit; }
+.meter.warn i { background: var(--high); }
+.cost-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.cost-table th { padding: 9px 14px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--secondary); }
+.cost-table td { padding: 8px 14px; border-top: .5px solid var(--separator); font-variant-numeric: tabular-nums; }
+.cost-table td:last-child, .cost-table th:last-child { text-align: right; font-family: var(--mono); }
+.cost-table .tag { margin-left: 0; }

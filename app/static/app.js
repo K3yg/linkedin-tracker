@@ -53,6 +53,17 @@
     syncTimer = setTimeout(() => { if (!inflight) htmx.trigger(document.body, "countsChanged"); }, 600);
   }
 
+  // Step 2 "Open & apply": the link opens as usual; Applied becomes the highlighted next step.
+  document.addEventListener("click", (e) => {
+    const link = e.target.closest("[data-opened]");
+    if (link) {
+      link.closest(".job")?.classList.add("opened");
+      fetch(link.dataset.opened, { method: "POST", keepalive: true }).catch(() => {});
+    }
+    // Close an open ⋯ menu when clicking anywhere else.
+    document.querySelectorAll("details.menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
+  });
+
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-act]");
     if (!btn) return;

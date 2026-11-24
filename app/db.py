@@ -38,6 +38,18 @@ CREATE TABLE IF NOT EXISTS companies (   -- cached public LinkedIn company pages
     org_type   TEXT,
     fetched_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS apify_runs (  -- every paid Apify run (apify.py), for /costs
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id      TEXT,
+    started_at  TEXT NOT NULL,
+    finished_at TEXT,
+    status      TEXT,      -- SUCCEEDED | FAILED | TIMED-OUT | ABORTED | error | skipped
+    items       INTEGER DEFAULT 0,
+    new_jobs    INTEGER DEFAULT 0,
+    shown       INTEGER DEFAULT 0,  -- new jobs that reached To Apply
+    usd         REAL DEFAULT 0,
+    error       TEXT
+);
 """
 
 # Columns added after the first release; created on startup if missing.
@@ -70,6 +82,7 @@ MIGRATIONS = {
     "cv_model": "TEXT",
     "cv_created_at": "TEXT",
     "source": "TEXT",                   # NULL = LinkedIn; otherwise a job board from sources.py
+    "opened_at": "TEXT",                # when "Open & apply" was clicked (job card step 2)
 }
 
 
@@ -183,6 +196,83 @@ def upsert_external(jobs: list[dict]) -> list[str]:
             if cur.rowcount:
                 new.append(j["id"])
     return new
+
+
+APIFY_FIELDS = ("id", "title", "company", "location", "url", "posted_at", "search_keywords", "description",
+                "applicants", "applicants_text", "workplace", "workplace_evidence", "seniority",
+                "employment_type", "job_function", "industries", "company_url", "apply_type", "salary")
+
+
+def upsert_apify(rows: list[dict]) -> list[str]:
+    """LinkedIn jobs from Apify (apify.py) arrive with their detail fields: inserted complete, as
+    LinkedIn jobs (source NULL). Known ones just get a fresh applicant count. Returns new ids."""
+    new = []
+    seen_at = now_iso()
+    # A job first posted long ago and re-listed (LinkedIn "reposted") is old news: leave it alone.
+    stale_before = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat(timespec="seconds")
+    with connect() as conn:
+        for r in rows:
+            cur = conn.execute(
+                f"""INSERT OR IGNORE INTO jobs ({", ".join(APIFY_FIELDS)}, first_seen_at, applicants_checked_at)
+                    VALUES ({", ".join("?" * len(APIFY_FIELDS))}, ?, ?)""",
+                (*(r[f] for f in APIFY_FIELDS), seen_at, seen_at),
+            )
+            if cur.rowcount:
+                new.append(r["id"])
+            else:
+                conn.execute(
+                    """UPDATE jobs SET applicants = ?, applicants_text = ?, applicants_checked_at = ?,
+                           description = COALESCE(NULLIF(description, ''), ?),
+                           workplace = CASE WHEN IFNULL(workplace, 'unknown') = 'unknown' THEN ? ELSE workplace END,
+                           workplace_evidence = CASE WHEN IFNULL(workplace, 'unknown') = 'unknown' THEN ?
+                                                     ELSE workplace_evidence END,
+                           apply_type = COALESCE(apply_type, ?)
+                       WHERE id = ? AND IFNULL(posted_at, first_seen_at) >= ?""",
+                    (r["applicants"], r["applicants_text"], seen_at, r["description"], r["workplace"],
+                     r["workplace_evidence"], r["apply_type"], r["id"], stale_before),
+                )
+    return new
+
+
+def log_apify_run(started_at: str, status: str, run_id: str = "", items: int = 0, new_jobs: int = 0,
+                  shown: int = 0, usd: float = 0.0, error: str = "") -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT INTO apify_runs (run_id, started_at, finished_at, status, items, new_jobs, shown, usd, error)"
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run_id, started_at, now_iso(), status, items, new_jobs, shown, usd, error),
+        )
+
+
+def month_start() -> str:
+    now = datetime.now(timezone.utc)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat(timespec="seconds")
+
+
+def apify_month_spent() -> float:
+    """US$ the tracker's Apify runs cost since the 1st of this month (UTC)."""
+    with connect() as conn:
+        return float(conn.execute("SELECT IFNULL(SUM(usd), 0) FROM apify_runs WHERE started_at >= ?",
+                                  (month_start(),)).fetchone()[0])
+
+
+def apify_runs(limit: int = 50) -> list[sqlite3.Row]:
+    with connect() as conn:
+        return conn.execute("SELECT * FROM apify_runs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+
+
+def apify_month_totals() -> dict:
+    with connect() as conn:
+        r = conn.execute("SELECT COUNT(*) runs, IFNULL(SUM(usd), 0) usd, IFNULL(SUM(items), 0) jobs,"
+                         " IFNULL(SUM(new_jobs), 0) new_jobs, IFNULL(SUM(shown), 0) shown"
+                         " FROM apify_runs WHERE started_at >= ? AND status != 'skipped'",
+                         (month_start(),)).fetchone()
+    return dict(r)
+
+
+def set_opened(job_id: str) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE jobs SET opened_at = IFNULL(opened_at, ?) WHERE id = ?", (now_iso(), job_id))
 
 
 def prune_stale(days: int = 3) -> int:

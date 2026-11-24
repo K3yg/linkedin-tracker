@@ -9,11 +9,21 @@
   "rechecks_per_scan": 1,
   "email_alerts": {
     "enabled": false,
-    "mailbox": "INBOX",
+    "mailbox": "JobAlerts",
     "days": 2,
     "every_minutes": 15
   },
   "search_minutes": 180,
+  "apify": {
+    "enabled": true,
+    "actor": "bebity~linkedin-jobs-scraper",
+    "titles": [],
+    "locations": [],
+    "rows": 25,
+    "every_minutes": 720,
+    "max_usd_per_run": 0.06,
+    "monthly_budget_usd": 4.0
+  },
   "ai": {
     "enabled": false,
     "model": "gemini-2.5-flash",
@@ -112,11 +122,11 @@
   },
   "searches": [
     {
-      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(\"full stack\" OR fullstack OR \"software engineer\" OR \"software developer\" OR backend OR \"back-end\" OR frontend OR \"front-end\" OR \"ai engineer\" OR \"llm engineer\" OR \"forward deployed\" OR \"founding engineer\" OR \"product engineer\" OR \"applied ai\" OR \"agent engineer\" OR desenvolvedor OR \"engenheiro de software\") AND (python OR typescript OR node OR react OR llm) NOT (jobgether OR crossover OR micro1 OR alignerr OR \".net\" OR \"c#\" OR salesforce OR \"data engineer\" OR angular)",
       "location": "Brazil"
     },
     {
-      "keywords": "(python OR typescript OR \"full stack\" OR react OR node OR \"ai engineer\" OR llm)",
+      "keywords": "(\"full stack\" OR fullstack OR \"software engineer\" OR \"software developer\" OR backend OR \"back-end\" OR frontend OR \"front-end\" OR \"ai engineer\" OR \"llm engineer\" OR \"forward deployed\" OR \"founding engineer\" OR \"product engineer\" OR \"applied ai\" OR \"agent engineer\" OR desenvolvedor OR \"engenheiro de software\") AND (python OR typescript OR node OR react OR llm) NOT (jobgether OR crossover OR micro1 OR alignerr OR \".net\" OR \"c#\" OR salesforce OR \"data engineer\" OR angular)",
       "location": "Latin America"
     }
   ],
@@ -169,7 +179,20 @@
     "programador",
     "programadora",
     "desarrollador",
-    "desarrolladora"
+    "desarrolladora",
+    "forward deployed",
+    "forward deployed engineer",
+    "fde",
+    "founder engineer",
+    "founding developer",
+    "ai automation",
+    "ai agent",
+    "ai agents",
+    "agent engineer",
+    "agents engineer",
+    "ai product engineer",
+    "ai full stack",
+    "ai software engineer"
   ],
   "exclude_title_words": [
     "staff",

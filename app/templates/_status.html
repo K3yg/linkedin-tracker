@@ -1,6 +1,24 @@
+{% set ap = apify_cfg() %}
+{% set busy = poller.scanning or poller.apify_running %}
 <div id="scan-status" class="status" hx-get="/scan-status" hx-swap="outerHTML"
-     hx-trigger="every {{ '3s' if poller.scanning else '30s' }}"
-     hx-vals='{"was_scanning": {{ 1 if poller.scanning else 0 }}}'>
+     hx-trigger="every {{ '3s' if busy else '30s' }}"
+     hx-vals='{"was_scanning": {{ 1 if busy else 0 }}}'>
+  {% if ap %}
+    {# LinkedIn jobs come from the paid Apify actor (apify.py); the tracker sends LinkedIn nothing itself. #}
+    <span class="dot {{ 'busy' if busy else ('err' if poller.apify_error else '') }}"></span>
+    {% if poller.apify_running %}
+      <span>Searching LinkedIn via Apify…</span>
+    {% elif poller.apify_error %}
+      <span data-tip="{{ poller.apify_error }}">Apify problem · hover for details</span>
+    {% elif poller.apify_ok_at %}
+      <span data-tip="LinkedIn jobs come from Apify every {{ (ap.every_minutes / 60)|round(1) }}h; the tracker never asks LinkedIn directly">Updated {{ poller.apify_ok_at|ago }} · next {{ apify_next_at()|until }}</span>
+    {% else %}
+      <span data-tip="Each Apify run costs about US$0.01–0.05, so the first one waits for you">Apify ready · press Scan Now</span>
+    {% endif %}
+    {% set spent = apify_spent() %}
+    <a class="btn cost {{ 'warn' if spent >= ap.monthly_budget_usd * 0.8 }}" href="/costs"
+       data-tip="Spent on Apify this month / monthly limit — click for details">US${{ "%.2f"|format(spent) }} / {{ "%.2f"|format(ap.monthly_budget_usd) }}</a>
+  {% else %}
   <span class="dot {{ 'busy' if poller.scanning else ('err' if poller.last_error or poller.paused else '') }}"></span>
   {% if poller.scanning %}
     <span>Scanning…</span>
@@ -17,10 +35,11 @@
   {% else %}
     <span>Starting…</span>
   {% endif %}
+  {% endif %}
   {% if poller.alerts_error %}
     <span class="dot err"></span><span data-tip="{{ poller.alerts_error }}">Email alerts failing</span>
   {% endif %}
-  <button class="btn" data-tip="Search LinkedIn right now instead of waiting for the next automatic scan"
+  <button class="btn" data-tip="{{ 'Run one Apify search now (about US$0.01–0.05, counts toward the monthly limit)' if ap else 'Search LinkedIn right now instead of waiting for the next automatic scan' }}"
           hx-post="/api/scan" hx-target="#scan-status" hx-swap="outerHTML"
-          {% if poller.scanning %}disabled{% endif %}>Scan Now</button>
+          {% if busy %}disabled{% endif %}>Scan Now</button>
 </div>

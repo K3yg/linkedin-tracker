@@ -49,16 +49,30 @@
   {% endif %}
 {% endmacro %}
 
+{# Job card steps (To Apply / Other boards): 1 Tailor CV → 2 Open & apply → 3 Applied. Only the next
+   step is highlighted (style.css, from the CV slot's data-state and the card's .opened class). #}
+{% macro open_btn(j) %}
+{% set steps = status in ("new", "boards") %}
+  {% set where = source_labels.get(j.source, j.source) if j.source else "LinkedIn" %}
+  {% if steps %}
+  <a class="btn step step-open" href="{{ j.url }}" target="_blank" rel="noopener" data-opened="/api/jobs/{{ j.id }}/opened"
+     data-tip="Open the job on {{ where }} and apply{% if j.cv %} — attach the tailored PDF{% endif %}"><span class="n">2</span>Open &amp; apply ↗</a>
+  {% else %}
+  <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on {{ where }}">Open ↗</a>
+  {% endif %}
+{% endmacro %}
+
 {% macro actions(j) %}
+{% set steps = status in ("new", "boards") %}
   {# Handled by /static/app.js: the card leaves at once and the request runs in the background. #}
   {% if status in ("new", "boards", "flagged") %}
-    <button class="btn primary" data-tip="I applied — move to the Applied tab"
-            data-act="/api/jobs/{{ j.id }}/status" data-to="applied">Applied</button>
+    <button class="btn {{ 'step step-applied' if steps }}" data-tip="I applied — move to the Applied tab"
+            data-act="/api/jobs/{{ j.id }}/status" data-to="applied">{% if steps %}<span class="n">3</span>{% endif %}Applied</button>
     {% if status == "flagged" %}
     <button class="btn" data-tip="This company is legit — never flag it again"
             data-act="/api/companies/trust" data-whole-company>Trust company</button>
     {% else %}
-    <button class="btn icon" data-tip="Block {{ j.company }} — hide all its jobs" aria-label="Block {{ j.company }}"
+    <button class="btn icon push" data-tip="Block {{ j.company }} — hide all its jobs" aria-label="Block {{ j.company }}"
             data-act="/api/companies/block" data-whole-company
             data-confirm="Hide every job from {{ j.company }} from now on?">
       <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M4.1 11.9l7.8-7.8"/></svg>
@@ -75,7 +89,8 @@
 {% endmacro %}
 
 {% macro job_card(j, rank) %}
-<article class="job card" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
+{% set steps = status in ("new", "boards") %}
+<article class="job card {{ 'opened' if j.opened_at }}" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
   <div class="card-top">
     <span class="rank" data-tip="Match score {{ j.match|round|int }} — skills, startup, level, applicants, freshness">{{ "%02d"|format(rank) }}</span>
     {{ applicants(j) }}
@@ -84,25 +99,27 @@
   <div class="sub">{{ j.company }}</div>
   <div class="meta">{{ where(j) }} · {{ j.posted_at|ago }} {{ tags(j) }}</div>
   <div class="card-actions">
-    <a class="btn" href="{{ j.url }}" target="_blank" rel="noopener" data-tip="Open the job on {{ source_labels.get(j.source, j.source) if j.source else 'LinkedIn' }}">Open ↗</a>
+    {% if steps %}{{ cv_slot(j, true) }}{% endif %}
+    {{ open_btn(j) }}
     {{ actions(j) }}
   </div>
-  {% if status in ("new", "boards", "applied") %}{{ cv_slot(j) }}{% endif %}
+  {% if status == "applied" %}{{ cv_slot(j) }}{% endif %}
 </article>
 {% endmacro %}
 
 {% macro job_row(j) %}
-<article class="job row" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
+{% set steps = status in ("new", "boards") %}
+<article class="job row {{ 'opened' if j.opened_at }}" id="job-{{ j.id }}" data-company="{{ j.company }}" data-jobs="{{ 1 + j.copies|length }}">
   <div class="row-appl">{{ applicants(j) }}</div>
   <div class="row-info">
     <a class="title" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a>
     <div class="meta">{{ j.company }} · {{ where(j) }} {{ tags(j) }}</div>
     {{ reasons(j) }}
-    {% if status in ("new", "boards", "applied") %}{{ cv_slot(j) }}{% endif %}
+    {% if status in ("new", "boards", "applied") %}{{ cv_slot(j, steps) }}{% endif %}
   </div>
   <time class="when">
     {% if status == "applied" %}applied {{ j.applied_at|ago }}{% else %}{{ j.posted_at|ago }}{% endif %}
   </time>
-  <div class="actions">{{ actions(j) }}</div>
+  <div class="actions">{{ open_btn(j) }}{{ actions(j) }}</div>
 </article>
 {% endmacro %}

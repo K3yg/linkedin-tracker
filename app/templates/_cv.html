@@ -28,27 +28,33 @@
 </details>
 {% endmacro %}
 
-{% macro cv_slot(j) %}
-<div class="cv-slot" id="cv-{{ j.id }}">
-  {% if j.cv_status == "working" %}
-    <span class="cv-busy" hx-get="/cv-slot/{{ j.id }}" hx-trigger="load delay:3s"
-          hx-target="closest .cv-slot" hx-swap="outerHTML"><span class="spinner"></span>Tailoring your CV to this job…</span>
-  {% else %}
-    {% if j.cv %}
-    <a class="btn primary small" href="/cv/{{ j.id }}/cv.pdf" target="_blank" rel="noopener"
-       data-tip="Your CV tailored to this job — upload it in Easy Apply">CV PDF ↗</a>
-    <a class="btn small" href="/cv/{{ j.id }}/cv.tex" data-tip="LaTeX source, e.g. to tweak it in Overleaf">.tex</a>
-    {% endif %}
-    {% if j.description %}
-    <button class="btn small" hx-post="/api/jobs/{{ j.id }}/cv" hx-target="closest .cv-slot" hx-swap="outerHTML"
-            data-tip="{{ 'Make a new version for this job' if j.cv else 'Reorder and reword your CV for this job (never adds anything you did not do) — about 20s' }}">{{ "Re-tailor" if j.cv else "Tailor CV" }}</button>
-    {% endif %}
-    {% if j.cv_status == "error" %}
-    <span class="cv-error" data-tip="{{ j.cv_error }}">Couldn't tailor{% if j.cv %} — showing the previous version{% endif %}</span>
-    {% endif %}
-    {% if j.cv %}{{ changes(j.cv) }}{% endif %}
+{% macro cv_slot(j, steps=False) %}
+{# Step 1 of the job card. data-state drives which step is highlighted (style.css):
+   todo = can tailor · working · done = CV ready · none = no description to tailor from. #}
+{% set state = "working" if j.cv_status == "working" else ("done" if j.cv else ("todo" if j.description else "none")) %}
+<div class="cv-slot" id="cv-{{ j.id }}" data-state="{{ state }}">
+  {% if state == "working" %}
+    <span class="cv-busy" hx-get="/cv-slot/{{ j.id }}{{ '?steps=1' if steps }}" hx-trigger="load delay:3s"
+          hx-target="closest .cv-slot" hx-swap="outerHTML"><span class="spinner"></span>Tailoring CV…</span>
+  {% elif state == "done" %}
+    <span class="cv-ok" data-tip="Your CV, tailored to this job ({{ 'Portuguese' if j.cv.language == 'pt' else 'English' }}, made {{ j.cv.created_at|ago }})">✓ CV ready</span>
+    <a class="btn small" href="/cv/{{ j.id }}/cv.pdf" target="_blank" rel="noopener"
+       data-tip="Open the PDF — upload it when you apply">PDF ↗</a>
+    {% if j.cv_status == "error" %}<span class="cv-error" data-tip="{{ j.cv_error }}">re-tailor failed</span>{% endif %}
+    <details class="menu">
+      <summary class="btn small menu-btn" aria-label="More CV options">⋯</summary>
+      <div class="menu-pop">
+        <a class="menu-item" href="/cv/{{ j.id }}/cv.tex">Download .tex <span class="muted">(edit in Overleaf)</span></a>
+        <button class="menu-item" hx-post="/api/jobs/{{ j.id }}/cv{{ '?steps=1' if steps }}" hx-target="closest .cv-slot" hx-swap="outerHTML">Re-tailor <span class="muted">(make a new version, ~20s)</span></button>
+        {{ changes(j.cv) }}
+      </div>
+    </details>
+  {% elif state == "todo" %}
+    <button class="btn step step-cv" hx-post="/api/jobs/{{ j.id }}/cv{{ '?steps=1' if steps }}" hx-target="closest .cv-slot" hx-swap="outerHTML"
+            data-tip="Reorder and reword your CV for this job (never adds anything you did not do) — about 20s">{% if steps %}<span class="n">1</span>{% endif %}Tailor CV</button>
+    {% if j.cv_status == "error" %}<span class="cv-error" data-tip="{{ j.cv_error }}">couldn't tailor — try again</span>{% endif %}
   {% endif %}
 </div>
 {% endmacro %}
 
-{% if j is defined %}{{ cv_slot(j) }}{% endif %}
+{% if j is defined %}{{ cv_slot(j, steps) }}{% endif %}

@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from . import ai, config, db, intel, mail_alerts, ranking, ratelimits, roles, scraper, sources, trust
+from . import ai, apify, config, db, intel, mail_alerts, ranking, ratelimits, roles, scraper, sources, trust
 from .notify import notify_new
 
 log = logging.getLogger(__name__)
@@ -50,6 +50,10 @@ class Poller:
         self.companies_paused_until: datetime | None = None
         self.sources_last_run: dict[str, str] = {}  # source -> ISO time of its last fetch
         self.sources_errors: dict[str, str] = {}
+        self.apify_last_run: datetime | None = None  # last attempt (also budget skips)
+        self.apify_ok_at: datetime | None = None
+        self.apify_error: str | None = None
+        self.apify_running = False
         self._lock = asyncio.Lock()
         self._load_state()
 
@@ -59,7 +63,8 @@ class Poller:
             self.backoff = int(state.get("backoff", 1))
             self.blocks = int(state.get("blocks", 0))
             self.sources_last_run = state.get("sources_last_run", {})
-            for name in ("next_scan_at", "paused_until", "last_scan_at", "alerts_ok_at"):
+            for name in ("next_scan_at", "paused_until", "last_scan_at", "alerts_ok_at", "apify_last_run",
+                         "apify_ok_at"):
                 if state.get(name):
                     setattr(self, name, datetime.fromisoformat(state[name]))
         except (OSError, ValueError):
@@ -76,6 +81,8 @@ class Poller:
             "last_scan_at": iso(self.last_scan_at),  # last search: alert jobs also bump last_seen_at
             "alerts_ok_at": iso(self.alerts_ok_at),
             "sources_last_run": self.sources_last_run,
+            "apify_last_run": iso(self.apify_last_run),
+            "apify_ok_at": iso(self.apify_ok_at),
         }), encoding="utf-8")
 
     @property
@@ -115,7 +122,10 @@ class Poller:
             new_jobs: list[scraper.Job] = []
             stats = {"queries": 0, "cards": 0, "saved": 0, "title_filtered": 0, "checked": 0,
                      "remote": 0, "not_remote": 0, "unknown": 0, "remote_ids": [], "flagged_ids": []}
-            if self.paused:
+            if cfg["apify"]["enabled"]:
+                # Apify finds LinkedIn jobs (fetch_apify); asking LinkedIn ourselves only gets us blocked.
+                self.last_error = None
+            elif self.paused:
                 self.last_error = (f"LinkedIn refused us; no requests to it until "
                                    f"{self.paused_until.astimezone():%d/%m %H:%M}")
                 log.info(self.last_error)
@@ -321,10 +331,73 @@ class Poller:
         self._save_state()
         return len(inserted)
 
+    def apify_next_at(self, cfg: dict) -> datetime | None:
+        if not self.apify_last_run:
+            return None
+        return self.apify_last_run + timedelta(minutes=float(cfg["apify"]["every_minutes"]))
+
+    async def fetch_apify(self, force: bool = False) -> int:
+        """LinkedIn jobs via the paid Apify actor (apify.py), every apify.every_minutes. Never more than
+        monthly_budget_usd a month: a run that could cross it is skipped. Returns jobs that reached To Apply."""
+        cfg = config.load()
+        o = cfg["apify"]
+        if not o["enabled"] or self.apify_running:
+            return 0
+        next_at = self.apify_next_at(cfg)
+        # The very first run (each one costs money) waits for Scan Now; after that, every interval.
+        if not force and (not next_at or utcnow() < next_at):
+            return 0
+        self.apify_running = True  # at once, so the status bar shows it before the first await
+        try:
+            return await self._apify_run(cfg, o)
+        finally:
+            self.apify_running = False
+
+    async def _apify_run(self, cfg: dict, o: dict) -> int:
+        started = utcnow()
+        self.apify_last_run = started
+        self._save_state()
+        started_iso = started.isoformat(timespec="seconds")
+        # The account's own figure also counts runs started on Apify's website.
+        spent = max(await asyncio.to_thread(db.apify_month_spent), (await apify.account_usage()).get("used", 0.0))
+        if spent + float(o["max_usd_per_run"]) > float(o["monthly_budget_usd"]):
+            self.apify_error = (f"Monthly budget reached (US${spent:.2f} of US${float(o['monthly_budget_usd']):.2f})"
+                                " — no more Apify runs until the 1st; raise apify.monthly_budget_usd to continue")
+            log.warning(self.apify_error)
+            await asyncio.to_thread(db.log_apify_run, started_iso, "skipped", error="monthly budget reached")
+            return 0
+        try:
+            result = await apify.run(cfg)
+        except (apify.ApifyError, httpx.HTTPError, ValueError, KeyError) as e:
+            self.apify_error = f"Apify run failed: {e}"
+            log.warning(self.apify_error)
+            await asyncio.to_thread(db.log_apify_run, started_iso, "error", error=str(e)[:500])
+            return 0
+        fn = db.functions(cfg)
+        rows = [r for r in apify.to_rows(result.items, started) if fn.is_dev_role(r["title"])]
+        new_ids = await asyncio.to_thread(db.upsert_apify, rows)
+        await asyncio.to_thread(trust.refresh)
+        try:
+            await ai.judge_pending(int(cfg["ai"].get("per_scan", 0)))
+        except Exception:
+            log.exception("AI step failed")
+        shown = self._shown(new_ids)
+        ok = result.status == "SUCCEEDED"
+        self.apify_error = None if ok else f"Apify run ended {result.status} (got {len(result.items)} jobs)"
+        if ok:
+            self.apify_ok_at = utcnow()
+        await asyncio.to_thread(db.log_apify_run, started_iso, result.status, result.run_id, len(result.items),
+                                len(new_ids), len(shown), result.usd, "" if ok else self.apify_error)
+        log.info("apify: %d job(s), %d new, %d in To Apply, US$%.4f", len(result.items), len(new_ids),
+                 len(shown), result.usd)
+        await self._notify(shown)
+        self._save_state()
+        return len(shown)
+
     async def run_sources_forever(self) -> None:
         """Separate from the LinkedIn loop so its rate-limit backoff doesn't hold the other boards up."""
         while True:
-            for step in (self.fetch_alerts, self.fetch_sources):
+            for step in (self.fetch_apify, self.fetch_alerts, self.fetch_sources):
                 try:
                     await step()
                 except Exception:

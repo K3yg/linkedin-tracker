@@ -20,7 +20,11 @@ DEFAULTS = {
     # While they work, the LinkedIn search only runs every `search_minutes`; detail reads keep the
     # poll_minutes pace.
     "email_alerts": {"enabled": False, "mailbox": "INBOX", "days": 2, "every_minutes": 15},
-    "search_minutes": 180,  # re-read jobs shown in To Apply so closed ones drop out
+    "search_minutes": 180,
+    # LinkedIn jobs through a paid Apify actor (apify.py). While enabled, the tracker sends LinkedIn
+    # itself no requests. Costs are on /costs; runs stop once monthly_budget_usd is reached.
+    "apify": {"enabled": False, "actor": "bebity~linkedin-jobs-scraper", "titles": [], "locations": ["Brazil"],
+              "rows": 40, "every_minutes": 480, "max_usd_per_run": 0.05, "monthly_budget_usd": 4.0},  # re-read jobs shown in To Apply so closed ones drop out
     # Gemini reads each job that passes the filters and says whether it's worth applying (ai.py).
     "ai": {"enabled": True, "model": "gemini-2.5-flash", "tailor_model": "gemini-3.8-flash",
            "per_scan": 15, "hide_skips": True},
@@ -55,6 +59,7 @@ def load() -> dict:
         user = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
         cfg.update({k: v for k, v in user.items() if k != "trust"})
         cfg["trust"].update(user.get("trust", {}))
+        cfg["apify"] = {**DEFAULTS["apify"], **user.get("apify", {})}
     cfg.update(OVERRIDE)
     return cfg
 
