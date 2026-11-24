@@ -1,0 +1,105 @@
+{# The /study page body. Re-fetched every few seconds while a job's requirements are being read. #}
+<div id="study-body" {% if waiting %}hx-get="/study-body{% if plan_row %}?plan={{ plan_row.id }}{% endif %}" hx-trigger="every 4s" hx-swap="outerHTML"{% endif %}>
+{% if not ai_key %}
+  <div class="empty">Add GEMINI_API_KEY to .env to read job requirements and build study plans.</div>
+{% elif not jobs %}
+  <div class="empty">No jobs bookmarked yet — click the bookmark <svg viewBox="0 0 16 16" aria-hidden="true" style="vertical-align:-2px"><path d="M4.5 2.5h7v11L8 10.6l-3.5 2.9z"/></svg> on any job you like (any tab), then come back here.</div>
+{% else %}
+<div class="study-grid">
+  <div>
+    <form class="study-panel" hx-post="/api/study/plan" hx-target="#study-body" hx-swap="outerHTML" hx-disabled-elt="find button">
+      <h3>Bookmarked jobs · {{ jobs|length }}</h3>
+      {% for j in jobs %}
+      <label class="study-job">
+        <input type="checkbox" name="job_ids" value="{{ j.id }}" {{ 'checked' if j.state == 'ready' }} {{ 'disabled' if j.state != 'ready' }}>
+        <span>
+          <a class="t" href="{{ j.url }}" target="_blank" rel="noopener">{{ j.title }}</a><br>
+          <span class="muted">{{ j.company }} ·
+            {% if j.state == "ready" %}{{ j.n_reqs }} requirements
+            {% elif j.state == "no_description" %}no description to read
+            {% else %}<span class="spinner"></span> reading requirements…{% endif %}</span>
+        </span>
+        <button type="button" class="btn icon study on x" data-study="/api/jobs/{{ j.id }}/study" aria-label="Remove from Study"
+                data-tip="Remove from Study"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h7v11L8 10.6l-3.5 2.9z"/></svg></button>
+      </label>
+      {% endfor %}
+      <div class="plan-actions">
+        <button class="btn primary" {{ 'disabled' if not n_ready }}>
+          <span class="busy-hide">Build study plan</span><span class="busy-show">Building… (~30s)</span>
+        </button>
+        {% if plan_row %}<button class="btn" name="rebuild" value="1" data-tip="Ask Gemini again for the checked jobs, even if a plan for them is saved">Rebuild</button>{% endif %}
+      </div>
+      <p class="hint" style="margin:8px 0 0">The same set of jobs reuses its saved plan — no new AI call. Model: {{ model }}.</p>
+      {% if plan_error %}<p class="plan-error">Couldn't build the plan: {{ plan_error }}</p>{% endif %}
+    </form>
+
+    {% if plans|length > 1 or (plans and not plan_row) %}
+    <div class="study-panel">
+      <h3>Saved plans</h3>
+      {% for p in plans %}
+      <div class="study-job">
+        <a class="t" href="/study?plan={{ p.id }}" {% if plan_row and p.id == plan_row.id %}style="color:var(--accent)"{% endif %}>Plan #{{ p.id }} · {{ p.n }} job{{ 's' if p.n != 1 }}</a>
+        <span class="muted x">{{ p.created_at|ago }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if patterns %}
+    <div class="study-panel">
+      <h3>What they ask for · {{ n_ready }} job{{ 's' if n_ready != 1 }}</h3>
+      {% for r in patterns[:40] %}
+      <div class="pattern {{ 'has' if r.in_cv }}" data-tip="{{ r.jobs|map(attribute='company')|join(' · ') }} — “{{ r.evidence }}”">
+        <span class="name">{{ r.name }}</span>
+        <span class="bar"><i style="width: {{ (100 * r.count / n_ready)|round }}%"></i></span>
+        <span class="n">{{ r.count }}/{{ n_ready }}{% if r.in_cv %} · in CV{% endif %}</span>
+      </div>
+      {% endfor %}
+      <p class="hint" style="margin:8px 0 0">Orange: not in your CV yet. Green: your CV already shows it.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="study-panel">
+    {% if plan %}
+      <h3>Study plan #{{ plan_row.id }} · {{ plan.jobs|length }} job{{ 's' if plan.jobs|length != 1 }} · {{ plan_row.created_at|ago }}</h3>
+      <p class="plan-summary">{{ plan.summary }}</p>
+      {% for t in plan.topics %}
+      <div class="topic">
+        <h4><span class="n">{{ "%02d"|format(loop.index) }}</span>{{ t.name }} <span class="tag muted">~{{ t.hours }}h</span></h4>
+        <p class="why">{{ t.why }}</p>
+        <div class="label">Learn</div>
+        <ul>{% for x in t.learn %}<li>{{ x }}</li>{% endfor %}</ul>
+        <div class="label">Resources</div>
+        <ul>{% for x in t.resources %}<li>{{ x }}</li>{% endfor %}</ul>
+        <div class="label">Exercise</div>
+        <p style="margin:4px 0 0">{{ t.exercise }}</p>
+      </div>
+      {% endfor %}
+      {% for p in plan.projects %}
+      <div class="project">
+        <h4>Project: {{ p.name }}</h4>
+        <p class="pitch">{{ p.pitch }}</p>
+        <div class="label">Covers</div>
+        <p style="margin:4px 0 6px">{{ p.covers|join(" · ") }} — <span class="muted">{{ p.stack|join(", ") }}</span></p>
+        <div class="label">Milestones</div>
+        <ol>{% for m in p.milestones %}<li>{{ m }}</li>{% endfor %}</ol>
+        <div class="label">Show it</div>
+        <p style="margin:4px 0 0">{{ p.show_it }}</p>
+      </div>
+      {% endfor %}
+      {% if plan.already_have %}
+      <div class="topic">
+        <h4>You already have</h4>
+        <ul>{% for s in plan.already_have %}<li><b>{{ s.name }}</b> — {{ s.tip }}</li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      <p class="hint">Built from: {{ plan.jobs|map(attribute='company')|join(" · ") }}</p>
+    {% else %}
+      <h3>Study plan</h3>
+      <div class="empty" style="margin:0">Pick the jobs on the left and press “Build study plan”: topics in the order to learn them, plus a portfolio project that covers them.</div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+</div>

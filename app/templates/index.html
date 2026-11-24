@@ -26,6 +26,7 @@
         {% include "_tabs.html" %}
       </nav>
 
+      <a class="btn" href="/study" data-tip="What the jobs you bookmarked ask for, and a study plan to learn it">Study{% if study_count() %} <span class="count">{{ study_count() }}</span>{% endif %}</a>
       <a class="btn" href="/costs" data-tip="How much the paid Apify search costs">Costs</a>
 
       <form id="filters" class="search" onsubmit="return false">

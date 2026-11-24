@@ -24,6 +24,7 @@
 {% endmacro %}
 
 {% macro tags(j) %}
+  {% if j.study_at %}<span class="tag study" data-tip="Bookmarked for the Study page">Study</span>{% endif %}
   {{ ai_tag(j) }}
   {% if is_fresh(j) %}<span class="tag new" data-tip="Posted less than an hour ago">New</span>{% endif %}
   {% if j.apply_type == "easy_apply" and not easy_only %}<span class="tag easy" data-tip="Apply in one click on LinkedIn (ranked higher)">Easy Apply</span>{% endif %}
@@ -86,6 +87,16 @@
     <button class="btn" data-tip="Move back to To Apply"
             data-act="/api/jobs/{{ j.id }}/status" data-to="new">Undo</button>
   {% endif %}
+  {{ study_btn(j) }}
+{% endmacro %}
+
+{# Bookmark for the Study page (study.py): marks the job, doesn't move it. Handled by app.js. #}
+{% macro study_btn(j) %}
+  <button class="btn icon study {{ 'on' if j.study_at }}" data-study="/api/jobs/{{ j.id }}/study"
+          data-tip="{{ 'Marked for Study — click to unmark' if j.study_at else 'Study this job: add its requirements to your study plan (Study page)' }}"
+          aria-label="Study this job" aria-pressed="{{ 'true' if j.study_at else 'false' }}">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.5h7v11L8 10.6l-3.5 2.9z"/></svg>
+  </button>
 {% endmacro %}
 
 {% macro job_card(j, rank) %}

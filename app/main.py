@@ -12,7 +12,7 @@ from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import ai, apify, checks, config, db, ranking, sources, tailor, trust
+from . import ai, apify, checks, config, db, ranking, sources, study, tailor, trust
 from .poller import Poller
 
 poller = Poller()
@@ -83,6 +83,7 @@ templates.env.globals.update(
     flags_of=trust.parse, poller=poller, source_labels=sources.LABELS,
     apify_cfg=lambda: (lambda o: o if o["enabled"] else None)(config.load()["apify"]),
     apify_spent=db.apify_month_spent, apify_next_at=lambda: poller.apify_next_at(config.load()),
+    study_count=db.study_count,
 )
 
 
@@ -247,6 +248,14 @@ def mark_opened(job_id: str):
     db.set_opened(job_id)
 
 
+@app.post("/api/jobs/{job_id}/study", status_code=204)
+def mark_study(job_id: str, on: int = Form(1)):
+    """The bookmark on a job: mark it for the Study page. Its requirements are read once, in the background."""
+    db.set_study(job_id, bool(on))
+    if on:
+        _run_in_background(study.extract(job_id))
+
+
 @app.post("/api/jobs/{job_id}/status", status_code=204)
 def set_status(job_id: str, to: str = Form(...)):
     db.set_status(job_id, _status(to))
@@ -313,6 +322,54 @@ def cv_file(job_id: str, name: str):
     company = re.sub(r"[^A-Za-z0-9]+", "_", row["company"] if row else "").strip("_") or job_id
     return FileResponse(path, filename=f"{os.environ.get('CV_NAME', 'My')}_CV_{company}{path.suffix}",
                         content_disposition_type="inline" if name == "cv.pdf" else "attachment")
+
+
+# ---- study (study.py) -------------------------------------------------------------
+
+def _study_context(plan_id: int | None = None) -> dict:
+    rows = db.study_jobs()
+    jobs = []
+    for r in rows:
+        state = "ready" if r["reqs"] else "working" if study.is_working(r["id"]) else             "pending" if r["description"] else "no_description"
+        jobs.append({**dict(r), "state": state, "n_reqs": len(json.loads(r["reqs"])) if r["reqs"] else 0})
+    ready = [r for r in rows if r["reqs"]]
+    plans = [{**dict(p), "n": len(json.loads(p["job_ids"]))} for p in db.study_plans()]
+    plan_row = db.get_plan(plan_id=plan_id) if plan_id else (plans[0] if plans else None)
+    return {
+        "jobs": jobs, "patterns": study.aggregate(ready), "n_ready": len(ready),
+        "waiting": any(j["state"] in ("working", "pending") for j in jobs),
+        "plans": plans, "plan_row": plan_row, "plan": json.loads(plan_row["plan"]) if plan_row else None,
+        "plan_job_ids": json.loads(plan_row["job_ids"]) if plan_row else [],
+        "ai_key": study.enabled(), "model": study.model_name(config.load()),
+    }
+
+
+@app.get("/study")
+def study_page(request: Request, plan: int | None = None):
+    """Marked jobs, the requirements they share, and study plans built from them."""
+    ctx = _study_context(plan)
+    if any(j["state"] == "pending" for j in ctx["jobs"]):
+        _run_in_background(study.extract_missing())
+    return templates.TemplateResponse(request, "study.html", ctx)
+
+
+@app.get("/study-body")
+def study_body(request: Request, plan: int | None = None):
+    return templates.TemplateResponse(request, "_study.html", _study_context(plan))
+
+
+@app.post("/api/study/plan")
+async def make_plan(request: Request):
+    form = await request.form()
+    job_ids = [str(i) for i in form.getlist("job_ids")]
+    try:
+        plan_id = await study.build_plan(job_ids, rebuild=bool(form.get("rebuild")))
+    except Exception as e:
+        logging.getLogger(__name__).exception("study plan failed")
+        ctx = _study_context()
+        ctx["plan_error"] = str(e)[:300]
+        return templates.TemplateResponse(request, "_study.html", ctx)
+    return templates.TemplateResponse(request, "_study.html", _study_context(plan_id))
 
 
 @app.post("/api/searches")

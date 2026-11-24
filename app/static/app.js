@@ -64,6 +64,26 @@
     document.querySelectorAll("details.menu[open]").forEach((d) => { if (!d.contains(e.target)) d.open = false; });
   });
 
+  // Study bookmark: toggles at once, saved in the background (the job stays where it is).
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-study]");
+    if (!btn) return;
+    e.preventDefault();
+    const on = !btn.classList.contains("on");
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", on);
+    try {
+      const res = await fetch(btn.dataset.study, { method: "POST", body: new URLSearchParams({ on: on ? 1 : 0 }) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast(on ? "Added to Study — its requirements are being read" : "Removed from Study");
+      if (view === "study") htmx.ajax("GET", "/study-body", { target: "#study-body", swap: "outerHTML" });
+    } catch (err) {
+      btn.classList.toggle("on", !on);
+      btn.setAttribute("aria-pressed", !on);
+      toast(`Couldn't save that (${err.message})`);
+    }
+  });
+
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest("[data-act]");
     if (!btn) return;

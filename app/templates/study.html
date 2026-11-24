@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Study · Job Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&family=Silkscreen&display=swap">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.4/dist/htmx.min.js"></script>
+</head>
+<body data-view="study">
+<div class="desktop">
+  <div class="window">
+    <header class="titlebar">
+      <div class="lights" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="logo">JOB<span>/</span>TRACKER<i class="cursor"></i></div>
+      {% include "_status.html" %}
+    </header>
+
+    <div class="toolbar">
+      <a class="btn" href="/">← Jobs</a>
+      <div class="section-head" style="margin:0">
+        <h2>Study</h2>
+        <p>What the jobs you bookmarked ask for, and a plan to learn it</p>
+      </div>
+    </div>
+
+    <main id="study">{% include "_study.html" %}</main>
+  </div>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

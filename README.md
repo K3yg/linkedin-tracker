@@ -86,6 +86,22 @@ your bullets in the same job, with no new numbers or technologies, no inflated r
 postings get a Portuguese CV. Compiled by `tools/tectonic.exe` (downloaded from its GitHub releases)
 and kept to one page. Files: `cv/out/<job id>/`. To update your CV, replace `cv/base.tex`.
 
+## Study (`app/study.py`)
+
+The bookmark on any job (any tab) marks it for the **Study** page. It doesn't move the job, and a
+marked job is never deleted by a reset or the stale-job cleanup.
+
+- **Marking** has Gemini list that job's requirements once (skills, tools, AI techniques, practices),
+  each marked as in your CV or not. They're stored on the job and never asked again.
+- **The Study page** counts those requirements across the bookmarked jobs, with no AI call, so you see
+  what keeps coming up (e.g. "Prompt Evaluation 4/6, not in CV").
+- **Build study plan** sends the counted requirements and your CV to Gemini once. You get topics in
+  the order to learn them, plus 1–2 portfolio projects that cover them. The plan is saved for that
+  exact set of jobs: asking again shows the saved plan, unless you press Rebuild.
+
+The model is `ai.study_model`, falling back to `ai.tailor_model`. Costs about US$0.005 per job and
+US$0.01 per plan.
+
 ## Intelligence files (`intel/`)
 
 - `latest.md` — what the last scan found + an overview of the whole dataset + your labels.

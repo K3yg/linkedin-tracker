@@ -50,6 +50,14 @@ CREATE TABLE IF NOT EXISTS apify_runs (  -- every paid Apify run (apify.py), for
     usd         REAL DEFAULT 0,
     error       TEXT
 );
+CREATE TABLE IF NOT EXISTS study_plans (  -- study plans built from marked jobs (study.py)
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key        TEXT UNIQUE NOT NULL,   -- sorted job ids + model: the same set is never asked twice
+    created_at TEXT NOT NULL,
+    job_ids    TEXT NOT NULL,          -- JSON list
+    model      TEXT,
+    plan       TEXT NOT NULL           -- JSON, see study.Plan
+);
 """
 
 # Columns added after the first release; created on startup if missing.
@@ -83,6 +91,10 @@ MIGRATIONS = {
     "cv_created_at": "TEXT",
     "source": "TEXT",                   # NULL = LinkedIn; otherwise a job board from sources.py
     "opened_at": "TEXT",                # when "Open & apply" was clicked (job card step 2)
+    "study_at": "TEXT",                 # marked for the Study page (study.py); such jobs are never deleted
+    "reqs": "TEXT",                     # JSON: requirements extracted from the description (study.py)
+    "reqs_model": "TEXT",
+    "reqs_at": "TEXT",
 }
 
 
@@ -275,6 +287,49 @@ def set_opened(job_id: str) -> None:
         conn.execute("UPDATE jobs SET opened_at = IFNULL(opened_at, ?) WHERE id = ?", (now_iso(), job_id))
 
 
+# ---- study (study.py) -----------------------------------------------------------
+
+def set_study(job_id: str, on: bool) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE jobs SET study_at = ? WHERE id = ?", (now_iso() if on else None, job_id))
+
+
+def study_jobs() -> list[sqlite3.Row]:
+    with connect() as conn:
+        return conn.execute("SELECT id, title, company, url, status, study_at, reqs, reqs_at, description"
+                            " FROM jobs WHERE study_at IS NOT NULL ORDER BY study_at DESC").fetchall()
+
+
+def study_count() -> int:
+    with connect() as conn:
+        return conn.execute("SELECT COUNT(*) FROM jobs WHERE study_at IS NOT NULL").fetchone()[0]
+
+
+def set_reqs(job_id: str, reqs: list[dict], model: str) -> None:
+    with connect() as conn:
+        conn.execute("UPDATE jobs SET reqs = ?, reqs_model = ?, reqs_at = ? WHERE id = ?",
+                     (json.dumps(reqs, ensure_ascii=False), model, now_iso(), job_id))
+
+
+def get_plan(key: str | None = None, plan_id: int | None = None) -> sqlite3.Row | None:
+    with connect() as conn:
+        if plan_id is not None:
+            return conn.execute("SELECT * FROM study_plans WHERE id = ?", (plan_id,)).fetchone()
+        return conn.execute("SELECT * FROM study_plans WHERE key = ?", (key,)).fetchone()
+
+
+def save_plan(key: str, job_ids: list[str], model: str, plan: dict) -> int:
+    with connect() as conn:
+        conn.execute("DELETE FROM study_plans WHERE key = ?", (key,))
+        return conn.execute("INSERT INTO study_plans (key, created_at, job_ids, model, plan) VALUES (?, ?, ?, ?, ?)",
+                            (key, now_iso(), json.dumps(job_ids), model, json.dumps(plan, ensure_ascii=False))).lastrowid
+
+
+def study_plans(limit: int = 20) -> list[sqlite3.Row]:
+    with connect() as conn:
+        return conn.execute("SELECT * FROM study_plans ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+
+
 def prune_stale(days: int = 3) -> int:
     """Drop LinkedIn jobs found more than `days` ago whose page was never read: with a few reads per
     scan they never will be, and the queue only grows."""
@@ -282,7 +337,7 @@ def prune_stale(days: int = 3) -> int:
     with connect() as conn:
         return conn.execute(
             "DELETE FROM jobs WHERE source IS NULL AND status = 'new' AND description IS NULL"
-            " AND cv_status IS NULL AND first_seen_at < ? AND IFNULL(posted_at, first_seen_at) < ?",
+            " AND cv_status IS NULL AND study_at IS NULL AND first_seen_at < ? AND IFNULL(posted_at, first_seen_at) < ?",
             (since, since),
         ).rowcount
 
@@ -545,9 +600,10 @@ def all_jobs() -> list[sqlite3.Row]:
 
 
 def delete_unhandled() -> int:
-    """Remove every job still in To Apply. Applied/dismissed jobs, and jobs with a tailored CV, are kept."""
+    """Remove every job still in To Apply. Applied/dismissed jobs, and jobs with a tailored CV or
+    marked for Study, are kept."""
     with connect() as conn:
-        return conn.execute("DELETE FROM jobs WHERE status = 'new' AND cv_status IS NULL").rowcount
+        return conn.execute("DELETE FROM jobs WHERE status = 'new' AND cv_status IS NULL AND study_at IS NULL").rowcount
 
 
 def set_status(job_id: str, status: str) -> None:

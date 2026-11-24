@@ -27,6 +27,7 @@ DEFAULTS = {
               "rows": 40, "every_minutes": 480, "max_usd_per_run": 0.05, "monthly_budget_usd": 4.0},  # re-read jobs shown in To Apply so closed ones drop out
     # Gemini reads each job that passes the filters and says whether it's worth applying (ai.py).
     "ai": {"enabled": True, "model": "gemini-2.5-flash", "tailor_model": "gemini-3.8-flash",
+           "study_model": "",  # Study page (study.py); empty = tailor_model
            "per_scan": 15, "hide_skips": True},
     # Where the user can work from; "remote within the US" etc. is hidden (see region.py).
     "remote_region": {"allowed": ["brazil", "latam", "latin america", "south america", "americas"],
