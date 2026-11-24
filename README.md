@@ -1,23 +1,82 @@
-# LinkedIn Job Tracker
+# Job Tracker
 
-Watches LinkedIn for newly posted **100% remote** jobs, pops a Windows notification when new ones
-are verified, and tracks them in a local dashboard (To Apply → Applied / Dismissed).
-**Top Picks** shows the 5 best matches: fewest applicants, freshly posted, not staff-level.
+**A local job radar for remote developers in Brazil / LATAM.** It finds fresh remote dev jobs that
+are actually open to you, throws out the junk, tailors your CV to each one, and turns the jobs you
+like into a study plan. It runs on your own machine, with your data in a SQLite file.
 
-Uses LinkedIn's public logged-out endpoints — no account or credentials involved.
+> Built for one person's job hunt (mid-level Python / TypeScript / React / LLM), but every filter,
+> search and keyword lives in `config.json`.
 
-## Run
+## What it does
+
+- 🔎 **Fresh jobs, not stale reposts.** LinkedIn jobs from the last 24h, through an Apify scraper so
+  your IP never gets rate-limited. Jobs also come from Himalayas, Remote OK, We Work Remotely, Remotive and
+  Greenhouse / Lever / Ashby boards.
+- 🌎 **Remote that is open to you.** Reads each description and hides "remote (US only)", "must
+  reside in Canada" and "authorized to work in the US". Jobs that hire in Brazil / LATAM / worldwide get a
+  **Brazil OK** tag.
+- 🧹 **Junk filter.** Scores trust (spam phrases, agencies, AI-training gig mills, mass reposts,
+  closed jobs). Gemini then reads each survivor next to your CV and says *apply / maybe / skip*, with a
+  0–100 score.
+- 🏆 **Ranked for your odds.** Your skills, mid-level fit, startup, Easy Apply, few applicants and
+  freshness. **Top Picks** shows the best 5.
+- 📄 **CV tailored per job, without inventing anything.** It reorders and rewords your own bullets
+  for the posting and compiles a one-page PDF. Every bullet is checked: no new numbers, no new
+  technologies, no inflated roles. Portuguese postings get a Portuguese CV.
+- ✅ **Step-by-step card.** 1 Tailor CV → 2 Open & apply → 3 Applied. Only the next step is highlighted.
+- 📚 **Study plan from real jobs.** Bookmark jobs you like and see the requirements they share
+  ("RAG 3/3, not in your CV"). It builds a plan with topics in order, a hands-on exercise for each, and
+  a portfolio project that covers them.
+- 💸 **Costs you can see.** A Costs page with the month's Apify spend, the projection and every run,
+  plus a hard monthly budget.
+- 🔔 Windows notifications when good jobs land.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    A[Apify<br/>LinkedIn 24h] --> F
+    B[Job boards<br/>APIs / RSS] --> F
+    F[Filters<br/>role · region · trust · closed] --> G[Gemini check<br/>apply / maybe / skip]
+    G --> R[Ranking<br/>& Top Picks]
+    R --> D[Dashboard<br/>localhost:8765]
+    D --> CV[Tailored CV<br/>LaTeX → PDF]
+    D --> S[Study<br/>requirements → plan]
+```
+
+**Stack:** Python 3.12, FastAPI, Jinja + htmx (no build step), SQLite, Google Gemini (`google-genai`),
+Tectonic for LaTeX, Apify for LinkedIn. It is set up for Windows (notifications, `run.bat`), but the
+core runs anywhere.
+
+## Quick start
 
 ```
-run.bat                      # server + dashboard at http://localhost:8765, scans every 15 min
+git clone https://github.com/K3yg/linkedin-tracker && cd linkedin-tracker
+copy .env.example .env        # GEMINI_API_KEY, APIFY_TOKEN, PROFILE_ABOUT, CV_NAME
+mkdir cv && copy <your CV>.tex cv\base.tex
+run.bat                       # http://localhost:8765
+```
+
+Needs [uv](https://docs.astral.sh/uv/). For PDFs, put `tectonic.exe` in `tools/`. Without an Apify
+token, set `apify.enabled: false`: LinkedIn is then read through its public logged-out pages, which
+get rate-limited quickly. Without a Gemini key, the AI check, tailoring and Study are off; everything
+else works.
+
+Other commands:
+
+```
 uv run python -m app.poller  # one scan from the terminal, prints new jobs (--list, --notify)
+schtasks /create /tn "Job Tracker" /sc onlogon /tr "\"%CD%\run.bat\""   # start at logon
 ```
 
-Start automatically at logon (optional):
+**What's private:** `.env`, `cv/`, `data/` and `intel/` are git-ignored, so your CV, keys and job
+history never leave your machine. The only data that goes out: the job text and your CV body go to
+Gemini, and the search keywords go to Apify.
 
-```
-schtasks /create /tn "LinkedIn Job Tracker" /sc onlogon /tr "\"%CD%\run.bat\""
-```
+**Typical cost:** Apify is about US$0.05 per run (about US$1.50/month at 1 run a day; free credit is
+US$5/month). Gemini is under a cent per tailored CV or analysed job, and about US$0.02 per study plan.
+
+---
 
 ## How a scan works
 
